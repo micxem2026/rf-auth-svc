@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout}">
+<head>
+    <title th:text="${errorTitle ?: 'Ошибка'}">Ошибка</title>
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow">
+                <div class="card-header text-white text-center"
+                     th:classappend="${errorType == 'unauthorized' or errorType == 'access-denied'} ? 'bg-warning' :
+                                        (${errorType == 'not-found'} ? 'bg-info' : 'bg-danger')">
+                    <h4 class="mb-0">
+                        <i class="fas me-2"
+                           th:classappend="${errorType == 'not-found'} ? 'fa-search' :
+                                             (${errorType == 'unauthorized' or errorType == 'access-denied'} ? 'fa-lock' :
+                                             (${errorType == 'server-error'} ? 'fa-server' : 'fa-exclamation-triangle'))"></i>
+                        <span th:text="${errorTitle}">Произошла ошибка</span>
+                        <span th:if="${errorCode}" class="badge bg-light text-dark ms-2" th:text="${errorCode}">500</span>
+                    </h4>
+                </div>
+                <div class="card-body text-center">
+                    <div class="mb-4">
+                        <i class="text-muted" style="font-size: 4rem;"
+                           th:classappend="${errorType == 'not-found'} ? 'fas fa-search' :
+                                             (${errorType == 'unauthorized' or errorType == 'access-denied'} ? 'fas fa-lock text-warning' :
+                                             (${errorType == 'server-error'} ? 'fas fa-server text-danger' : 'fas fa-exclamation-circle text-danger'))"></i>
+                    </div>
+
+                    <h5 class="card-title mb-3" th:text="${errorTitle}">Произошла ошибка</h5>
+                    <p class="card-text text-muted mb-4" th:text="${errorMessage}">
+                        Произошла неизвестная ошибка. Пожалуйста, попробуйте позже.
+                    </p>
+
+
+                    <div th:if="${errorType == 'invalid-client'}" class="alert alert-warning">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Обратитесь к администратору для регистрации вашего приложения.
+                    </div>
+
+                    <div th:if="${errorType == 'invalid-redirect-uri'}" class="alert alert-warning">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Убедитесь, что redirect URI корректно настроен в вашем приложении.
+                    </div>
+
+                    <div th:if="${errorType == 'access-denied-oauth'}" class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Вы можете попробовать авторизацию снова или обратиться к администратору.
+                    </div>
+
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                        <a href="/" class="btn btn-primary me-md-2">
+                            <i class="fas fa-home me-2"></i>
+                            На главную
+                        </a>
+
+                        <button th:if="${showBackButton}" onclick="history.back()" class="btn btn-outline-secondary me-md-2">
+                            <i class="fas fa-arrow-left me-2"></i>
+                            Назад
+                        </button>
+
+                        <a th:if="${showLoginButton}" href="/login" class="btn btn-success me-md-2">
+                            <i class="fas fa-sign-in-alt me-2"></i>
+                            Войти
+                        </a>
+
+
+                        <button th:if="${errorType == 'service-unavailable' or errorType == 'bad-gateway'}"
+                                onclick="location.reload()" class="btn btn-outline-primary">
+                            <i class="fas fa-redo me-2"></i>
+                            Повторить
+                        </button>
+                    </div>
+
+
+                    <div th:if="${showDebugInfo}" class="mt-4">
+                        <details class="text-start">
+                            <summary class="text-muted">Техническая информация</summary>
+                            <div class="mt-2 p-3 bg-light rounded">
+                                <small class="text-muted">
+                                    <strong>Тип ошибки:</strong> <span th:text="${errorType}">general</span><br>
+                                    <strong>HTTP статус:</strong> <span th:text="${errorCode}">-</span><br>
+                                    <strong>Время:</strong> <span th:text="${#temporals.format(#temporals.createNow(), 'dd.MM.yyyy HH:mm:ss')}">-</span><br>
+                                    <strong>User Agent:</strong> <span th:text="${#httpServletRequest.getHeader('User-Agent')}">-</span>
+                                </small>
+                            </div>
+                        </details>
+                    </div>
+                </div>
+                <div class="card-footer text-center text-muted">
+                    <small>
+                        <i class="fas fa-clock me-1"></i>
+                        Время: <span th:text="${#temporals.format(#temporals.createNow(), 'dd.MM.yyyy HH:mm:ss')}"></span>
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script layout:fragment="scripts">
+    // Автоматический редирект для некоторых типов ошибок
+    document.addEventListener('DOMContentLoaded', function() {
+        const errorType = /*[[${errorType}]]*/ '';
+
+        // Для ошибок аутентификации через 5 секунд редиректим на логин
+        if (errorType === 'unauthorized') {
+            setTimeout(function() {
+                if (confirm('Перейти на страницу входа?')) {
+                    window.location.href = '/login';
+                }
+            }, 5000);
+        }
+
+        // Логирование ошибки для аналитики
+        if (typeof gtag !== 'undefined') {
+            gtag('event', 'error_page_view', {
+                'error_type': errorType,
+                'error_code': /*[[${errorCode}]]*/ '',
+                'error_title': /*[[${errorTitle}]]*/ ''
+            });
+        }
+    });
+
+    // Функция для отправки отчета об ошибке
+    function reportError() {
+        const errorData = {
+            type: /*[[${errorType}]]*/ '',
+            code: /*[[${errorCode}]]*/ '',
+            title: /*[[${errorTitle}]]*/ '',
+            message: /*[[${errorMessage}]]*/ '',
+            timestamp: new Date().toISOString(),
+            userAgent: navigator.userAgent,
+            url: window.location.href
+        };
+
+        // Здесь можно отправить данные на сервер для анализа
+        console.log('Error report:', errorData);
+
+        alert('Отчет об ошибке отправлен. Спасибо!');
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout}" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <title>Главная страница</title>
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="row">
+        <div class="col-12">
+            <div class="jumbotron bg-light p-5 rounded">
+                <h1 class="display-4">
+                    <i class="fas fa-shield-alt text-primary me-3"></i>
+                    Authorization Server
+                </h1>
+                <p class="lead" th:text="${message}">Добро пожаловать в Authorization Server</p>
+                <hr class="my-4">
+                <p>Этот сервер предоставляет услуги авторизации и аутентификации для микро-сервисной архитектуры.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-flask me-2"></i>
+                        OAuth2 Testing Tools
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-code fa-3x text-primary mb-3"></i>
+                                    <h5 class="card-title">Authorization Code Flow</h5>
+                                    <p class="card-text">Тестирование потока авторизации с получением кода и обменом на токены.</p>
+                                    <a th:href="@{/oauth2/authorize(response_type='code', client_id='spa-client', scope='openid profile read', redirect_uri=${'http://' + host + '/callback'})}"
+                                       class="btn btn-primary">
+                                        <i class="fas fa-play me-2"></i>
+                                        Начать Authorization Code Flow
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-robot fa-3x text-success mb-3"></i>
+                                    <h5 class="card-title">Client Credentials Flow</h5>
+                                    <p class="card-text">Тестирование потока аутентификации сервиса к сервису.</p>
+                                    <button type="button" class="btn btn-success" onclick="testClientCredentials()">
+                                        <i class="fas fa-robot me-2"></i>
+                                        Тест Client Credentials
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div th:if="${code}" class="row mt-4">
+        <div class="col-12">
+            <div class="card border-success">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-key me-2"></i>
+                        OAuth2 Token Exchange
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-success" role="alert">
+                        <i class="fas fa-check-circle me-2"></i>
+                        <strong>Код авторизации получен успешно!</strong>
+                        <br>
+                        <small>Код: <code th:text="${code}">authorization_code</code></small>
+                        <span th:if="${state}">
+                            <br><small>State: <code th:text="${state}">state_value</code></small>
+                        </span>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Параметры для обмена токена:</h6>
+                            <div class="mb-3">
+                                <label for="clientId" class="form-label">Client ID:</label>
+                                <input type="text" class="form-control" id="clientId"
+                                       value="spa-client" readonly>
+                            </div>
+                            <div class="mb-3">
+                                <label for="clientSecret" class="form-label">Client Secret:</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="clientSecret" value="imbikot43" placeholder="Введите client secret">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('clientSecret')">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="authCode" class="form-label">Authorization Code:</label>
+                                <input type="text" class="form-control" id="authCode"
+                                       th:value="${code}" readonly>
+                            </div>
+                            <div class="mb-3">
+                                <label for="redirectUri" class="form-label">Redirect URI:</label>
+                                <input type="text" class="form-control" id="redirectUri"
+                                       th:value="${redirectUri}" readonly>
+                            </div>
+                            <div class="mb-3">
+                                <label for="requestedTtl" class="form-label">
+                                    Token TTL (в секундах):
+                                </label>
+                                <input type="number" class="form-control" id="requestedTtl"
+                                       placeholder="Например, 3600 (1 час). Оставьте пустым для значения по умолчанию.">
+                                <small class="form-text text-muted">Сервер может ограничить максимальное значение.</small>
+                            </div>
+                            <button type="button" class="btn btn-primary" onclick="exchangeCodeForTokens()">
+                                <i class="fas fa-exchange-alt me-2"></i>
+                                Получить токены
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary ms-2" onclick="clearTokenResponse()">
+                                <i class="fas fa-trash me-2"></i>
+                                Очистить
+                            </button>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Ответ сервера:</h6>
+                            <textarea id="tokenResponse" class="form-control" rows="15"
+                                      placeholder="Здесь будет отображен ответ от /oauth2/token endpoint..."></textarea>
+                            <div class="mt-2">
+                                <div class="btn-group" role="group" aria-label="Действия с ответом">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="copyTokenResponse()">
+                                        <i class="fas fa-copy me-1"></i>
+                                        Копировать всё
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-success" onclick="formatTokenResponse()">
+                                        <i class="fas fa-code me-1"></i>
+                                        Форматировать
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-info" onclick="decodeJWT()">
+                                        <i class="fas fa-eye me-1"></i>
+                                        Декодировать JWT
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-info ms-2" onclick="showTokenInfo()">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        Информация
+                                    </button>
+                                </div>
+
+                                <div class="btn-group ms-2" role="group" aria-label="Копировать токены">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="copySpecificToken('access')">
+                                        <i class="fas fa-key me-1"></i>
+                                        Access Token
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="copySpecificToken('refresh')">
+                                        <i class="fas fa-sync me-1"></i>
+                                        Refresh Token
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="copySpecificToken('id')">
+                                        <i class="fas fa-id-card me-1"></i>
+                                        ID Token
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4" sec:authorize="isAuthenticated()">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-user me-2"></i>
+                        Информация о пользователе
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-borderless">
+                        <tr>
+                            <td><strong>Имя пользователя:</strong></td>
+                            <td sec:authentication="name">username</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Роли:</strong></td>
+                            <td>
+                                <span sec:authorize="hasRole('ADMIN')" class="badge bg-danger me-1">Администратор</span>
+                                <span sec:authorize="hasRole('USER')" class="badge bg-primary me-1">Пользователь</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Статус:</strong></td>
+                            <td>
+                                <span class="badge bg-success">
+                                    <i class="fas fa-check me-1"></i>
+                                    Активен
+                                </span>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-cogs me-2"></i>
+                        Административные действия
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush">
+                        <a href="/actuator/health" class="list-group-item list-group-item-action">
+                            <i class="fas fa-heartbeat me-2"></i>
+                            Состояние сервера
+                        </a>
+                        <a href="/.well-known/jwks.json" class="list-group-item list-group-item-action">
+                            <i class="fas fa-key me-2"></i>
+                            JWKS Endpoint
+                        </a>
+                        <a href="/actuator/metrics" class="list-group-item list-group-item-action">
+                            <i class="fas fa-chart-line me-2"></i>
+                            Метрики сервера
+                        </a>
+                        <form th:action="@{/logout}" method="post" class="d-inline w-100">
+                            <button type="submit" class="btn btn-link list-group-item list-group-item-action text-danger p-3 border-0 w-100 text-start">
+                                <i class="fas fa-sign-out-alt me-2"></i>
+                                Выход из системы
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4" sec:authorize="isAnonymous()">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Требуется авторизация</h5>
+                    <p class="card-text">Для доступа к административным функциям системы необходимо войти в систему.</p>
+                    <a href="/login" class="btn btn-primary">
+                        <i class="fas fa-sign-in-alt me-2"></i>
+                        Войти в систему
+                    </a>
+                    <hr class="my-4">
+                    <p class="text-muted">OAuth2 тестирование доступно без аутентификации</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="clientCredentialsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-robot me-2"></i>
+                        Client Credentials Grant Test
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info" role="alert">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Этот тест демонстрирует аутентификацию сервиса к сервису без участия пользователя.
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Параметры:</h6>
+                            <div class="mb-3">
+                                <label for="ccClientId" class="form-label">Client ID:</label>
+                                <input type="text" class="form-control" id="ccClientId" value="svc-client">
+                            </div>
+                            <div class="mb-3">
+                                <label for="ccClientSecret" class="form-label">Client Secret:</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="ccClientSecret" value="imbikot42">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('ccClientSecret')">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="ccScope" class="form-label">Scope:</label>
+                                <input type="text" class="form-control" id="ccScope" value="read update create delete execute">
+                            </div>
+                            <div class="mb-3">
+                                <label for="ccRequestedTtl" class="form-label">
+                                    Token TTL (в секундах):
+                                </label>
+                                <input type="number" class="form-control" id="ccRequestedTtl"
+                                       placeholder="Например, 7200 (2 часа).">
+                                <small class="form-text text-muted">Сервер может ограничить максимальное значение.</small>
+                            </div>
+                            <div class="d-grid gap-2">
+                                <button type="button" class="btn btn-primary" onclick="testClientCredentialsFlow()">
+                                    <i class="fas fa-play me-2"></i>
+                                    Выполнить запрос
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="clearCCResponse()">
+                                    <i class="fas fa-trash me-2"></i>
+                                    Очистить ответ
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Ответ:</h6>
+                            <textarea id="ccResponse" class="form-control" rows="12"
+                                      placeholder="Ответ от /oauth2/token для Client Credentials..."></textarea>
+                            <div class="mt-2">
+                                <div class="btn-group" role="group">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="copyCCResponse()">
+                                        <i class="fas fa-copy me-1"></i>
+                                        Копировать
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-success" onclick="formatCCResponse()">
+                                        <i class="fas fa-code me-1"></i>
+                                        Форматировать
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-info" onclick="showCCTokenInfo()">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        Информация
+                                    </button>
+                                </div>
+                                <div class="btn-group ms-2" role="group">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="copyCCAccessToken()">
+                                        <i class="fas fa-key me-1"></i>
+                                        Access Token
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-warning" onclick="decodeCCJWT()">
+                                        <i class="fas fa-eye me-1"></i>
+                                        Декодировать JWT
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="jwtDecodeModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-eye me-2"></i>
+                        JWT Token Decoder
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info" role="alert">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Информация:</strong> Временные метки (iat, exp, nbf) отображаются как в Unix формате, так и в человекочитаемом виде.
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <h6>Header:</h6>
+                            <pre id="jwtHeader" class="bg-light p-3 rounded small" style="max-height: 400px; overflow-y: auto;"></pre>
+                        </div>
+                        <div class="col-md-8">
+                            <h6>Payload (Claims):</h6>
+                            <pre id="jwtPayload" class="bg-light p-3 rounded small" style="max-height: 400px; overflow-y: auto;"></pre>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <small class="text-muted">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Подпись не отображается по соображениям безопасности
+                                </small>
+                            </div>
+                            <div class="col-md-6 text-end">
+                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="copyJWTDecoded()">
+                                    <i class="fas fa-copy me-1"></i>
+                                    Копировать payload
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+</body>
+</html>

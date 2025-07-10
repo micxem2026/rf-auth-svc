@@ -1,0 +1,20 @@
+
+ooooooooo.    o8o             oooo            .            oooooooooooo oooo
+`888   `Y88.  `"'             `888          .o8            `888'     `8 `888
+ 888   .d88' oooo   .oooooooo  888 .oo.   .o888oo  .oooo.o  888          888   .ooooo.  oooo oooo    ooo
+ 888ooo88P'  `888  888' `88b   888P"Y88b    888   d88(  "8  888oooo8     888  d88' `88b  `88. `88.  .8'
+ 888`88b.     888  888   888   888   888    888   `"Y88b.   888    "     888  888   888   `88..]88..8'
+ 888  `88b.   888  `88bod8P'   888   888    888 . o.  )88b  888          888  888   888    `888'`888'
+o888o  o888o o888o `8oooooo.  o888o o888o   "888" 8""888P' o888o        o888o `Y8bod8P'     `8'  `8'
+                   d"     YD
+                   "Y88888P'
+
+      .o.                       .   oooo                 .oooooo..o
+     .888.                    .o8   `888                d8P'    `Y8
+    .8"888.     oooo  oooo  .o888oo  888 .oo.           Y88bo.       .ooooo.  oooo d8b oooo    ooo  .ooooo.  oooo d8b
+   .8' `888.    `888  `888    888    888P"Y88b           `"Y8888o.  d88' `88b `888""8P  `88.  .8'  d88' `88b `888""8P
+  .88ooo8888.    888   888    888    888   888  8888888      `"Y88b 888ooo888  888       `88..8'   888ooo888  888
+ .8'     `888.   888   888    888 .  888   888          oo     .d8P 888    .o  888        `888'    888    .o  888
+o88o     o8888o  `V88V"V8P'   "888" o888o o888o         8""88888P'  `Y8bod8P' d888b        `8'     `Y8bod8P' d888b
+
+Powered by Spring Boot ${spring-boot.version} (java ${java.version})

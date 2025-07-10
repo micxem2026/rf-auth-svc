@@ -1,0 +1,3 @@
+include:
+  - project: 'rights-flow/rf-config-repo'
+    file: '/ci-templates/rf-basic-pipe.yml'

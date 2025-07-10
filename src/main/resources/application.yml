@@ -1,0 +1,47 @@
+
+server:
+  port: 9000
+
+spring:
+  application:
+    name: rf-auth-svc
+  cloud:
+    config:
+      uri: ${RF_CONFIG_SERVICE_URL:'http://localhost:8888'}
+  thymeleaf:
+    cache: false
+    mode: HTML
+    encoding: UTF-8
+    prefix: classpath:/templates/
+    suffix: .html
+  web:
+    resources:
+      static-locations: classpath:/static/
+      cache:
+        period: 0
+
+
+  datasource:
+    url: jdbc:postgresql://${RF_PG_USERS_DB_SVC:'postgresql.micxem'}:${RF_PG_USERS_DB_SVC_PORT:5432}/users_db
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+  flyway:
+    enabled: true
+    locations: classpath:db/migrations
+    baseline-on-migrate: true
+
+
+eureka:
+  instance:
+    hostname: ${RF_AUTH_SVC_HOSTNAME:${hostname:localhost}}
+  client:
+    serviceUrl:
+      defaultZone: ${RF_EUREKA_SERVICE_URL:'http://localhost:8761/eureka/'}

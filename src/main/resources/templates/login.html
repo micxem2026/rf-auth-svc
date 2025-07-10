@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout.html}">
+<head>
+    <meta charset="UTF-8">
+    <title>Вход в систему</title>
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-5">
+
+            <div th:if="${isOAuthRequest}" class="card shadow mb-3">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Запрос авторизации
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-sm-4"><strong>Приложение:</strong></div>
+                        <div class="col-sm-8">
+                            <span class="badge bg-primary" th:text="${clientId}">client-app</span>
+                        </div>
+                    </div>
+                    <div class="row mt-2" th:if="${redirectUri}">
+                        <div class="col-sm-4"><strong>Redirect URI:</strong></div>
+                        <div class="col-sm-8">
+                            <small class="text-muted" th:text="${redirectUri}">https://app.example.com/callback</small>
+                        </div>
+                    </div>
+                    <div class="row mt-2" th:if="${requestedScopes}">
+                        <div class="col-sm-4"><strong>Запрашиваемые права:</strong></div>
+                        <div class="col-sm-8">
+                                <span th:each="scope : ${requestedScopes}"
+                                      class="badge bg-secondary me-1" th:text="${scope}">openid</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white text-center">
+                    <h4 class="mb-0">
+                        <i class="fas fa-sign-in-alt me-2"></i>
+                        Вход в систему
+                    </h4>
+                </div>
+                <div class="card-body">
+
+                    <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <span th:text="${errorMessage}">Ошибка аутентификации</span>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+
+
+                    <div th:if="${logout}" class="alert alert-success alert-dismissible fade show" role="alert">
+                        <i class="fas fa-check-circle me-2"></i>
+                        <span th:text="${logoutMessage}">Вы успешно вышли из системы</span>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+
+
+                    <div th:if="${isOAuthRequest}" class="alert alert-info" role="alert">
+                        <i class="fas fa-shield-alt me-2"></i>
+                        <strong>Приложение "<span th:text="${clientId}">client-app</span>"</strong>
+                        запрашивает доступ к вашей учетной записи.
+                    </div>
+
+                    <form th:action="@{/login}" method="post" id="loginForm">
+
+                        <input type="hidden" name="response_type" th:value="${param.response_type[0]}" th:if="${param.response_type}">
+                        <input type="hidden" name="client_id" th:value="${param.client_id[0]}" th:if="${param.client_id}">
+                        <input type="hidden" name="scope" th:value="${param.scope[0]}" th:if="${param.scope}">
+                        <input type="hidden" name="redirect_uri" th:value="${param.redirect_uri[0]}" th:if="${param.redirect_uri}">
+                        <input type="hidden" name="state" th:value="${param.state[0]}" th:if="${param.state}">
+                        <input type="hidden" name="code_challenge" th:value="${param.code_challenge[0]}" th:if="${param.code_challenge}">
+                        <input type="hidden" name="code_challenge_method" th:value="${param.code_challenge_method[0]}" th:if="${param.code_challenge_method}">
+                        <input type="hidden" name="nonce" th:value="${param.nonce[0]}" th:if="${param.nonce}">
+
+                        <div class="mb-3">
+                            <label for="username" class="form-label">
+                                <i class="fas fa-user me-1"></i>
+                                Имя пользователя
+                            </label>
+                            <input type="text" class="form-control" id="username" name="username"
+                                   required autofocus placeholder="Введите имя пользователя">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="password" class="form-label">
+                                <i class="fas fa-lock me-1"></i>
+                                Пароль
+                            </label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="password" name="password"
+                                       required placeholder="Введите пароль">
+                                <button class="btn btn-outline-secondary" type="button" id="togglePassword">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="mb-3 form-check" th:unless="${isOAuthRequest}">
+                            <input type="checkbox" class="form-check-input" id="rememberMe" name="remember-me">
+                            <label class="form-check-label" for="rememberMe">
+                                Запомнить меня
+                            </label>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-sign-in-alt me-2"></i>
+                                <span th:if="${isOAuthRequest}">Войти и авторизовать</span>
+                                <span th:unless="${isOAuthRequest}">Войти</span>
+                            </button>
+                        </div>
+                    </form>
+
+
+                    <div th:if="${isOAuthRequest}" class="text-center mt-3">
+                        <button type="button" class="btn btn-outline-secondary" onclick="cancelOAuthRequest()">
+                            <i class="fas fa-times me-2"></i>
+                            Отменить
+                        </button>
+                    </div>
+                </div>
+                <div class="card-footer text-center text-muted">
+                    <small>
+                        <i class="fas fa-info-circle me-1"></i>
+                        <span th:if="${isOAuthRequest}">
+                                Вход необходим для авторизации приложения
+                            </span>
+                        <span th:unless="${isOAuthRequest}">
+                                Для доступа к системе необходима авторизация
+                            </span>
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script layout:fragment="scripts">
+    document.getElementById('togglePassword').addEventListener('click', function() {
+        const passwordField = document.getElementById('password');
+        const toggleIcon = this.querySelector('i');
+
+        if (passwordField.type === 'password') {
+            passwordField.type = 'text';
+            toggleIcon.classList.remove('fa-eye');
+            toggleIcon.classList.add('fa-eye-slash');
+        } else {
+            passwordField.type = 'password';
+            toggleIcon.classList.remove('fa-eye-slash');
+            toggleIcon.classList.add('fa-eye');
+        }
+    });
+
+    // Авто-фокус на первое поле при загрузке
+    document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('username').focus();
+    });
+
+    // Функция отмены OAuth2 запроса
+    function cancelOAuthRequest() {
+        const redirectUri = /*[[${param.redirect_uri[0]}]]*/ '';
+        const state = /*[[${param.state[0]}]]*/ '';
+
+        if (redirectUri) {
+            let cancelUrl = redirectUri;
+            cancelUrl += (redirectUri.includes('?') ? '&' : '?');
+            cancelUrl += 'error=access_denied';
+            cancelUrl += '&error_description=User%20cancelled%20authorization';
+            if (state) {
+                cancelUrl += '&state=' + encodeURIComponent(state);
+            }
+
+            window.location.href = cancelUrl;
+        } else {
+            window.history.back();
+        }
+    }
+
+    // Валидация формы с учетом OAuth2 параметров
+    document.getElementById('loginForm').addEventListener('submit', function(e) {
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value;
+
+        if (!username) {
+            e.preventDefault();
+            showAlert('Пожалуйста, введите имя пользователя', 'danger');
+            document.getElementById('username').focus();
+            return;
+        }
+
+        if (!password) {
+            e.preventDefault();
+            showAlert('Пожалуйста, введите пароль', 'danger');
+            document.getElementById('password').focus();
+            return;
+        }
+
+        // Показываем индикатор загрузки для OAuth2 запросов
+        const isOAuthRequest = /*[[${isOAuthRequest}]]*/ false;
+        if (isOAuthRequest) {
+            const submitButton = this.querySelector('button[type="submit"]');
+            submitButton.disabled = true;
+            submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Авторизация...';
+        }
+    });
+
+    function showAlert(message, type) {
+        const alertHtml = `
+                <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+
+        const alertContainer = document.querySelector('.card-body');
+        if (alertContainer) {
+            alertContainer.insertAdjacentHTML('afterbegin', alertHtml);
+        }
+    }
+</script>
+</body>
+</html>
