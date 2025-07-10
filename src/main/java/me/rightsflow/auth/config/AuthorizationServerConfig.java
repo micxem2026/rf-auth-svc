@@ -229,7 +229,7 @@ public class AuthorizationServerConfig {
                 .scope("create")
                 .clientSettings(ClientSettings.builder()
                         .requireAuthorizationConsent(false)
-                        .requireProofKey(true)
+                        .requireProofKey(false)
                         .build())
                 .tokenSettings(TokenSettings.builder()
                         .accessTokenTimeToLive(Duration.ofSeconds(defTokenTtl))
