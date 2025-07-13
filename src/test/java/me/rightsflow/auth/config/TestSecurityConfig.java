@@ -16,12 +16,23 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.core.AuthorizationGrantType;
+import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
+import org.springframework.security.oauth2.core.oidc.OidcScopes;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.authorization.client.InMemoryRegisteredClientRepository;
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
+import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
+import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+
+import java.time.Duration;
+import java.util.UUID;
 
 @TestConfiguration
 @EnableWebSecurity
@@ -65,7 +76,8 @@ public class TestSecurityConfig {
                         "/error",
                         "/actuator/**",
                         "/api/**",
-                        "/userinfo")
+                        "/userinfo",
+                        "/admin/**")
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/actuator/**",
                                 "/error",
@@ -74,6 +86,8 @@ public class TestSecurityConfig {
                                 "/").permitAll()
                         .requestMatchers("/api/**",
                                 "/userinfo").authenticated()
+                        .requestMatchers("/admin/**").hasRole("ADMIN")
+                        .anyRequest().authenticated()
                 )
                 .formLogin(form -> form
                         .loginPage("/login")
@@ -86,10 +100,6 @@ public class TestSecurityConfig {
                 )
                 .logout(logout -> logout
                         .logoutUrl("/logout")
-/*                        .logoutRequestMatcher(request ->
-                                "/logout".equals(request.getServletPath()) &&
-                                        ("GET".equals(request.getMethod()) || "POST".equals(request.getMethod()))
-                        )*/
                         .logoutSuccessHandler(logoutSuccessHandler())
                         .invalidateHttpSession(true)
                         .deleteCookies("JSESSIONID")
@@ -126,6 +136,58 @@ public class TestSecurityConfig {
     @Bean
     public AuthenticationSuccessHandler authenticationSuccessHandler() {
         return new RfAuthAuthenticationSuccessHandler();
+    }
+
+    @Bean
+    public RegisteredClientRepository registeredClientRepository() {
+
+        RegisteredClient svcClient = RegisteredClient.withId(UUID.randomUUID().toString())
+                .clientId("svc-client")
+                .clientSecret("$2a$10$PF4SCvOpUMba.p2Mx2bL/e/3ldyZMq70.VgO.bq.DtjoTx8PFj5j.")
+                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
+                .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
+                .scope("read")
+                .scope("update")
+                .scope("execute")
+                .scope("delete")
+                .scope("create")
+                .tokenSettings(TokenSettings.builder()
+                        .accessTokenTimeToLive(Duration.ofSeconds(3600))
+                        .build())
+                .clientSettings(ClientSettings.builder()
+                        .requireAuthorizationConsent(false)
+                        .build())
+                .build();
+
+
+        RegisteredClient spaClient = RegisteredClient.withId(UUID.randomUUID().toString())
+                .clientId("spa-client")
+                .clientSecret("$2a$10$K9CrnOBK41aJMDFMMc.teeVpq1tg1IclkyCOUKvlOzKey1XPUVV0m")
+                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+                .redirectUri("http://%s:%d/callback".formatted("localhost", 9000))
+                .redirectUri("http://localhost:%d/callback".formatted(9000))
+                .scope(OidcScopes.OPENID)
+                .scope(OidcScopes.PROFILE)
+                .scope("read")
+                .scope("update")
+                .scope("execute")
+                .scope("delete")
+                .scope("create")
+                .clientSettings(ClientSettings.builder()
+                        .requireAuthorizationConsent(false)
+                        .requireProofKey(false)
+                        .build())
+                .tokenSettings(TokenSettings.builder()
+                        .accessTokenTimeToLive(Duration.ofSeconds(3600))
+                        .refreshTokenTimeToLive(Duration.ofDays(30))
+                        .reuseRefreshTokens(true)
+                        .build())
+                .build();
+
+        return new InMemoryRegisteredClientRepository(svcClient, spaClient);
+
     }
 
 }

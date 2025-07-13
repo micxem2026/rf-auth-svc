@@ -4,30 +4,25 @@ import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import me.rightsflow.auth.repository.OAuth2RegisteredClientRepository;
+import me.rightsflow.auth.service.JpaRegisteredClientRepository;
 import me.rightsflow.auth.service.JwkService;
 import me.rightsflow.auth.service.RfAuthUserDetailsService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.core.AuthorizationGrantType;
-import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
-import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
-import org.springframework.security.oauth2.core.oidc.OidcScopes;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.server.authorization.client.InMemoryRegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
-import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
-import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
 import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
 import org.springframework.security.web.SecurityFilterChain;
@@ -36,10 +31,6 @@ import org.springframework.security.web.authentication.AuthenticationSuccessHand
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
-
-import java.net.PasswordAuthentication;
-import java.time.Duration;
-import java.util.UUID;
 
 @Slf4j
 @Configuration
@@ -52,32 +43,24 @@ public class AuthorizationServerConfig {
     @Value("${server.port:9000}")
     private Integer issuerPort;
 
-    @Value("${rightsflow.oauth.token.default-ttl-seconds:3600}")
-    private long defTokenTtl;
-
-    @Value("${rightsflow.oauth.token.refresh-ttl-days:30}")
-    private long refreshTokenTtl;
-
     private final JwkService jwkService;
     private final RfAuthUserDetailsService userDetailsService;
-
+    private final JpaRegisteredClientRepository jpaRegisteredClientRepository;
 
     /**
-     * SecurityFilterChain with high priority (1) for Authorization Server.
-     *
-     * This filter chain is applied to the following URL paths:
-     * <ul>
-     * <li>/oauth2/**</li>
-     * <li>/connect/**</li>
-     * <li>/.well-known/jwks.json</li>
-     * <li>/.well-known/openid-configuration</li>
-     * </ul>
-     *
-     * It uses standard configuration for Authorization Server with OIDC.
-     *
-     * @param http HttpSecurity object for configuration.
-     * @return Configured SecurityFilterChain.
-     * @throws Exception If an error occurs during configuration.
+     * Bean SecurityFilterChain, отвечающий за безопасность
+     * конечных точек сервера авторизации.
+     * <p>
+     * Он применяет стандартную конфигурацию сервера авторизации OAuth2
+     * и конфигурацию OIDC.
+     * <p>
+     * Он также настраивает security matcher для обработки только связанных с OAuth2 конечных точек
+     * и настраивает обработку исключений для перенаправления неавторизованных запросов на страницу входа.
+     * <p>
+     * Фильтр цепочки имеет наивысший приоритет (1), чтобы обеспечить его выполнение до любых других фильтров цепочек.
+     * @param http Объект HttpSecurity, используемый для создания цепочки безопасности.
+     * @return Созданный bean цепочки безопасности.
+     * @throws Exception Если происходит ошибка при создании цепочки безопасности.
      */
     @Bean
     @Order(1) // Высокий приоритет для фильтров Authorization Server
@@ -86,9 +69,11 @@ public class AuthorizationServerConfig {
         // Применяем стандартную конфигурацию сервера авторизации
         http.with(OAuth2AuthorizationServerConfigurer.authorizationServer(), Customizer.withDefaults());
 
-        // Настраиваем OIDC, если это нужно сделать отдельно (часто Customizer.withDefaults() уже достаточно)
+        // Настраиваем OIDC, если это нужно сделать отдельно
         http.getConfigurer(OAuth2AuthorizationServerConfigurer.class)
-                .oidc(Customizer.withDefaults());
+                .oidc((oidc) ->
+                        oidc.clientRegistrationEndpoint(Customizer.withDefaults())
+                     );
 
         // Определяем, какие URL-пути должна обрабатывать эта цепочка
         http
@@ -108,21 +93,25 @@ public class AuthorizationServerConfig {
 
 
     /**
-     * Конфигурация цепочки фильтров безопасности для обычных запросов.
-     * Обрабатывает запросы к login, error, actuator, api и userinfo.
+     * Настройка стандартной цепочки безопасности для обработки веб-безопасности.
      * <p>
-     * Для /actuator/**, /error, /login - доступ без аутентификации.
-     * Для /api/**, /userinfo - доступ только для аутентифицированных пользователей.
+     * Применяет security matcher для указанных endpoint'ов, таких как корневой, login, logout,
+     * страницы ошибок, actuator, API, user info, и admin.
      * <p>
-     * Используется OAuth2ResourceServerConfigurer для конфигурации сервера ресурсов.
+     * Настройка сервера ресурсов OAuth2 с валидацией токенов JWT и настройка правил авторизации:
+     * позволяет доступ к actuator, error, login, и logout; требует аутентификации для API и user info;
+     * и ограничивает доступ к admin только для пользователей с ролью ADMIN.
      * <p>
-     * FormLoginConfigurer настраивается для обычной формы аутентификации.
-     * LogoutConfigurer настраивается для logout.
-     * ExceptionHandlingConfigurer настраивается для обработки ошибок.
+     * Настройка форменной аутентификации с кастомными обработчиками успеха и неудачи, а также настройка logout
+     * с кастомным обработчиком успеха, инвалидацией сессии и удалением cookie.
+     * <p>
+     * Обработка исключений путем перенаправления на кастомную страницу доступа запрещен и неавторизованных обработчиков.
+     * <p>
+     * Включение защиты от CSRF и использование кастомного сервиса user details.
      *
-     * @param http Объект HttpSecurity для настройки безопасности.
-     * @return Цепочка фильтров безопасности.
-     * @throws Exception Если возникает ошибка при настройке.
+     * @param http The HttpSecurity object used to build the security filter chain.
+     * @return The built security filter chain bean.
+     * @throws Exception If there is an error when building the security filter chain.
      */
     @Bean
     @Order(2)
@@ -135,11 +124,13 @@ public class AuthorizationServerConfig {
                         "/error",
                         "/actuator/**",
                         "/api/**",
-                        "/userinfo")
+                        "/userinfo",
+                        "/admin/**")
                 .oauth2ResourceServer(resourceServer -> resourceServer
                         .jwt(Customizer.withDefaults())
                 )
                 .authorizeHttpRequests(authorize -> authorize
+                          //.dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR).permitAll()
                           .requestMatchers("/actuator/**",
                                            "/error",
                                            "/login",
@@ -147,6 +138,8 @@ public class AuthorizationServerConfig {
                                            "/").permitAll()
                           .requestMatchers("/api/**",
                                            "/userinfo").authenticated()
+                          .requestMatchers("/admin/**").hasRole("ADMIN")
+                          .anyRequest().authenticated()
                 )
                 .formLogin(form -> form
                         .loginPage("/login")
@@ -159,10 +152,6 @@ public class AuthorizationServerConfig {
                 )
                 .logout(logout -> logout
                         .logoutUrl("/logout")
-/*                        .logoutRequestMatcher(request ->
-                                "/logout".equals(request.getServletPath()) &&
-                                        ("GET".equals(request.getMethod()) || "POST".equals(request.getMethod()))
-                        )*/
                         .logoutSuccessHandler(logoutSuccessHandler())
                         .invalidateHttpSession(true)
                         .deleteCookies("JSESSIONID")
@@ -175,70 +164,30 @@ public class AuthorizationServerConfig {
                             response.sendRedirect("/error?type=unauthorized");
                         })
                 )
-                .csrf(Customizer.withDefaults())
+                .csrf(csrf -> csrf
+                        .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                        .ignoringRequestMatchers("/oauth2/**", "/connect/**", "/.well-known/**")
+                )
                 //.csrf(AbstractHttpConfigurer::disable)
                 .userDetailsService(userDetailsService);
 
         return http.build();
     }
 
-
     /**
-     * Регистрирует два клиента:
-     *  1. "svc-client" - для Client Credentials Grant
-     *  2. "spa-client" - для Authorization Code Flow
-     *
-     * @return Repository of registered clients.
+     * Возвращает репозиторий на основе JPA для сущностей {@link RegisteredClient}
+     * вместо стандартной реализации InMemory.
+     * <p>
+     * Это необходимо для хранения и извлечения зарегистрированных клиентов из базы данных.
+     * <p>
+     * Возвращаемый репозиторий является экземпляром {@link JpaRegisteredClientRepository}.
+     * @return JPA-based репозиторий для зарегистрированных клиентов.
      */
     @Bean
-    public RegisteredClientRepository registeredClientRepository(PasswordEncoder passwordEncoder) {
-        //log.debug("PASSWORD: {}", passwordEncoder.encode(""));
-        RegisteredClient svcClient = RegisteredClient.withId(UUID.randomUUID().toString())
-                .clientId("svc-client")
-                .clientSecret("$2a$10$PF4SCvOpUMba.p2Mx2bL/e/3ldyZMq70.VgO.bq.DtjoTx8PFj5j.")
-                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
-                .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
-                .scope("read")
-                .scope("update")
-                .scope("execute")
-                .scope("delete")
-                .scope("create")
-                .tokenSettings(TokenSettings.builder()
-                        .accessTokenTimeToLive(Duration.ofSeconds(defTokenTtl))
-                        .build())
-                .clientSettings(ClientSettings.builder()
-                        .requireAuthorizationConsent(false)
-                        .build())
-                .build();
-
-
-        RegisteredClient spaClient = RegisteredClient.withId(UUID.randomUUID().toString())
-                .clientId("spa-client")
-                .clientSecret("$2a$10$K9CrnOBK41aJMDFMMc.teeVpq1tg1IclkyCOUKvlOzKey1XPUVV0m")
-                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
-                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-                .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
-                .redirectUri("http://%s:%d/callback".formatted(issuerHost, issuerPort))
-                .redirectUri("http://localhost:%d/callback".formatted(issuerPort))
-                .scope(OidcScopes.OPENID)
-                .scope(OidcScopes.PROFILE)
-                .scope("read")
-                .scope("update")
-                .scope("execute")
-                .scope("delete")
-                .scope("create")
-                .clientSettings(ClientSettings.builder()
-                        .requireAuthorizationConsent(false)
-                        .requireProofKey(false)
-                        .build())
-                .tokenSettings(TokenSettings.builder()
-                        .accessTokenTimeToLive(Duration.ofSeconds(defTokenTtl))
-                        .refreshTokenTimeToLive(Duration.ofDays(refreshTokenTtl))
-                        .reuseRefreshTokens(true)
-                        .build())
-                .build();
-
-        return new InMemoryRegisteredClientRepository(svcClient, spaClient);
+    @Primary
+    public RegisteredClientRepository registeredClientRepository() {
+        // Возвращаем JPA-based репозиторий вместо InMemory
+        return jpaRegisteredClientRepository;
     }
 
     /**
@@ -253,11 +202,11 @@ public class AuthorizationServerConfig {
     }
 
     /**
-     * Creates a JwtDecoder bean that is responsible for decoding JWT tokens
-     * using the provided JWKSource.
+     * Создает бин JwtDecoder, который отвечает за декодирование токенов JWT
+     * с использованием предоставленного JWKSource.
      *
-     * @param jwkSource The JWK source used to load JSON Web Keys.
-     * @return A JwtDecoder configured with the provided JWKSource.
+     * @param jwkSource Источник JWK, используемый для загрузки JSON-ключей.
+     * @return JwtDecoder, сконфигурированный с помощью предоставленного JWKSource.
      */
     @Bean
     public JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource) {
@@ -284,8 +233,8 @@ public class AuthorizationServerConfig {
      * @return OAuth2TokenCustomizer для настройки JWT.
      */
     @Bean
-    public OAuth2TokenCustomizer<JwtEncodingContext> jwtCustomizer() {
-        return new RfAuthJwtTokenCustomizer();
+    public OAuth2TokenCustomizer<JwtEncodingContext> jwtCustomizer(OAuth2RegisteredClientRepository repo) {
+        return new RfAuthJwtTokenCustomizer(repo);
     }
 
     /**
@@ -334,6 +283,5 @@ public class AuthorizationServerConfig {
     public LogoutSuccessHandler logoutSuccessHandler() {
         return new RfAuthLogoutSuccessHandler();
     }
-
 
 }

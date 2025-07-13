@@ -145,21 +145,6 @@
 </div>
 
 <script layout:fragment="scripts">
-    document.getElementById('togglePassword').addEventListener('click', function() {
-        const passwordField = document.getElementById('password');
-        const toggleIcon = this.querySelector('i');
-
-        if (passwordField.type === 'password') {
-            passwordField.type = 'text';
-            toggleIcon.classList.remove('fa-eye');
-            toggleIcon.classList.add('fa-eye-slash');
-        } else {
-            passwordField.type = 'password';
-            toggleIcon.classList.remove('fa-eye-slash');
-            toggleIcon.classList.add('fa-eye');
-        }
-    });
-
     // Авто-фокус на первое поле при загрузке
     document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('username').focus();
@@ -167,8 +152,8 @@
 
     // Функция отмены OAuth2 запроса
     function cancelOAuthRequest() {
-        const redirectUri = /*[[${param.redirect_uri[0]}]]*/ '';
-        const state = /*[[${param.state[0]}]]*/ '';
+        const redirectUri = /*[[${param.redirect_uri != null ? param.redirect_uri[0] : ''}]]*/ '';
+        const state = /*[[${param.state != null ? param.state[0] : ''}]]*/ '';
 
         if (redirectUri) {
             let cancelUrl = redirectUri;

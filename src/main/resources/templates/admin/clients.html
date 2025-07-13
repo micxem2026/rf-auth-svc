@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout}" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <title>Управление OAuth2 клиентами</title>
+    <meta name="_csrf" th:content="${_csrf.token}"/>
+    <meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>
+                    <i class="fas fa-users-cog me-2"></i>
+                    OAuth2 клиенты
+                </h2>
+                <a href="/admin/clients/register" class="btn btn-primary">
+                    <i class="fas fa-plus me-2"></i>
+                    Зарегистрировать клиента
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list me-2"></i>
+                        Зарегистрированные клиенты
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="clientsContainer">
+                        <div class="d-flex justify-content-center">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">Загрузка...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="testClientModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-flask me-2"></i>
+                        Тест OAuth2 клиента
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Параметры:</h6>
+                            <div class="mb-3">
+                                <label for="testClientId" class="form-label">Client ID:</label>
+                                <input type="text" class="form-control" id="testClientId" readonly>
+                            </div>
+                            <div class="mb-3">
+                                <label for="testClientSecret" class="form-label">Client Secret:</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="testClientSecret"
+                                           placeholder="Введите client secret">
+                                    <button class="btn btn-outline-secondary" type="button"
+                                            onclick="togglePasswordVisibility('testClientSecret')">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="testGrantType" class="form-label">Grant Type:</label>
+                                <select class="form-select" id="testGrantType" onchange="onTestGrantTypeChange()">
+                                    <option value="client_credentials">Client Credentials</option>
+                                    <option value="authorization_code">Authorization Code</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="testScopes" class="form-label">Scopes:</label>
+                                <input type="text" class="form-control" id="testScopes" readonly>
+                            </div>
+
+
+                            <div id="authCodeFields" style="display: none;">
+                                <div class="mb-3">
+                                    <label for="testAuthCode" class="form-label">Authorization Code:</label>
+                                    <input type="text" class="form-control" id="testAuthCode"
+                                           placeholder="Сначала получите код через /oauth2/authorize">
+                                    <small class="form-text text-muted">
+                                        <a href="#" onclick="startAuthCodeFlow()" class="text-decoration-none">
+                                            <i class="fas fa-external-link-alt me-1"></i>
+                                            Получить код авторизации
+                                        </a>
+                                    </small>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="testRedirectUri" class="form-label">Redirect URI:</label>
+                                    <select class="form-select" id="testRedirectUri">
+
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="testRequestedTtl" class="form-label">
+                                    Token TTL (в секундах):
+                                </label>
+                                <input type="number" class="form-control" id="testRequestedTtl"
+                                       placeholder="Например, 7200 (2 часа).">
+                                <small class="form-text text-muted">Сервер может ограничить максимальное значение.</small>
+                            </div>
+
+                            <button type="button" class="btn btn-primary" onclick="testSelectedClient()">
+                                <i class="fas fa-play me-2"></i>
+                                Выполнить тест
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary ms-2" onclick="clearTestResult()">
+                                <i class="fas fa-trash me-2"></i>
+                                Очистить
+                            </button>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Результат:</h6>
+                            <textarea id="testResult" class="form-control" rows="15"
+                                      placeholder="Результат теста появится здесь..."></textarea>
+                            <div class="mt-2">
+                                <div class="btn-group" role="group">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="copyTestResult()">
+                                        <i class="fas fa-copy me-1"></i>
+                                        Копировать всё
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-success" onclick="formatTestResult()">
+                                        <i class="fas fa-code me-1"></i>
+                                        Форматировать
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-info" onclick="showTestTokenInfo()">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        Информация
+                                    </button>
+                                </div>
+                                <div class="btn-group ms-2" role="group">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="copyTestAccessToken()">
+                                        <i class="fas fa-key me-1"></i>
+                                        Access Token
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="copyTestRefreshToken()">
+                                        <i class="fas fa-sync me-1"></i>
+                                        Refresh Token
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-warning" onclick="decodeTestJWT()">
+                                        <i class="fas fa-eye me-1"></i>
+                                        Декодировать JWT
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="deleteConfirmModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                        Подтверждение удаления
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Вы уверены, что хотите удалить клиента <strong id="deleteClientName"></strong>?</p>
+                    <p class="text-muted">Это действие нельзя отменить.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+                        <i class="fas fa-trash me-2"></i>
+                        Удалить
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="jwtDecodeModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-eye me-2"></i>
+                        JWT Token Decoder
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info" role="alert">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Информация:</strong> Временные метки (iat, exp, nbf) отображаются как в Unix формате, так и в человекочитаемом виде.
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <h6>Header:</h6>
+                            <pre id="jwtHeader" class="bg-light p-3 rounded small" style="max-height: 400px; overflow-y: auto;"></pre>
+                        </div>
+                        <div class="col-md-8">
+                            <h6>Payload (Claims):</h6>
+                            <pre id="jwtPayload" class="bg-light p-3 rounded small" style="max-height: 400px; overflow-y: auto;"></pre>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <small class="text-muted">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Подпись не отображается по соображениям безопасности
+                                </small>
+                            </div>
+                            <div class="col-md-6 text-end">
+                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="copyJWTDecoded()">
+                                    <i class="fas fa-copy me-1"></i>
+                                    Копировать payload
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="editClientModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-edit me-2"></i>
+                        Редактирование OAuth2 клиента
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editClientForm">
+                        <input type="hidden" id="editClientOriginalId">
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="editClientName" class="form-label">Название клиента *</label>
+                                    <input type="text" class="form-control" id="editClientName" required>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="editClientId" class="form-label">Client ID *</label>
+                                    <input type="text" class="form-control" id="editClientId" required
+                                           pattern="^[a-zA-Z0-9_-]+$">
+                                    <div class="form-text">Уникальный идентификатор (только буквы, цифры, дефис и подчеркивание)</div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Grant Types *</label>
+                                    <div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="editGrantClientCredentials"
+                                                   value="client_credentials">
+                                            <label class="form-check-label" for="editGrantClientCredentials">
+                                                Client Credentials (сервис-к-сервису)
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="editGrantAuthCode"
+                                                   value="authorization_code">
+                                            <label class="form-check-label" for="editGrantAuthCode">
+                                                Authorization Code (веб-приложения)
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="editGrantRefreshToken"
+                                                   value="refresh_token">
+                                            <label class="form-check-label" for="editGrantRefreshToken">
+                                                Refresh Token
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3" id="editRedirectUrisGroup" style="display: none;">
+                                    <label for="editRedirectUris" class="form-label">Redirect URIs</label>
+                                    <textarea class="form-control" id="editRedirectUris" rows="3"
+                                              placeholder="http://localhost:3000/callback&#10;https://myapp.com/oauth/callback"></textarea>
+                                    <div class="form-text">По одному URI на строку (обязательно для Authorization Code)</div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Scopes *</label>
+                                    <div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="editScopeRead" value="read">
+                                            <label class="form-check-label" for="editScopeRead">read</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="editScopeWrite" value="write">
+                                            <label class="form-check-label" for="editScopeWrite">write</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="editScopeCreate" value="create">
+                                            <label class="form-check-label" for="editScopeCreate">create</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="editScopeUpdate" value="update">
+                                            <label class="form-check-label" for="editScopeUpdate">update</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="editScopeDelete" value="delete">
+                                            <label class="form-check-label" for="editScopeDelete">delete</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="editScopeExecute" value="execute">
+                                            <label class="form-check-label" for="editScopeExecute">execute</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="editScopeOpenid" value="openid">
+                                            <label class="form-check-label" for="editScopeOpenid">openid</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="editScopeProfile" value="profile">
+                                            <label class="form-check-label" for="editScopeProfile">profile</label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="editAccessTokenTtl" class="form-label">Время жизни Access Token (секунды)</label>
+                                    <input type="number" class="form-control" id="editAccessTokenTtl" min="60" value="3600">
+                                </div>
+
+                                <div class="mb-3" id="editRefreshTokenTtlGroup" style="display: none;">
+                                    <label for="editRefreshTokenTtl" class="form-label">Время жизни Refresh Token (секунды)</label>
+                                    <input type="number" class="form-control" id="editRefreshTokenTtl" min="3600" value="2592000">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="editRequireAuthorizationConsent">
+                                        <label class="form-check-label" for="editRequireAuthorizationConsent">
+                                            Требовать подтверждение авторизации
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="editRequireProofKey">
+                                        <label class="form-check-label" for="editRequireProofKey">
+                                            Требовать PKCE (Proof Key for Code Exchange)
+                                        </label>
+                                    </div>
+                                    <div class="form-check" id="editReuseRefreshTokensGroup" style="display: none;">
+                                        <input class="form-check-input" type="checkbox" id="editReuseRefreshTokens" checked>
+                                        <label class="form-check-label" for="editReuseRefreshTokens">
+                                            Переиспользовать Refresh Tokens
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-primary" onclick="saveClientChanges()">
+                        <i class="fas fa-save me-2"></i>
+                        Сохранить изменения
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<th:block layout:fragment="scripts">
+
+    <script th:inline="javascript">
+        /*<![CDATA[*/
+        // Thymeleaf сериализует объект ${clients} из модели в JSON и подставит его сюда
+        const clientsData = /*[[${clients}]]*/ [];
+        /*]]>*/
+    </script>
+
+    <script th:src="@{/js/clients.js}"></script>
+</th:block>
+
+</body>
+</html>

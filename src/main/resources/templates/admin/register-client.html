@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout}">
+<head>
+    <title>Регистрация OAuth2 клиента</title>
+
+    <meta name="_csrf" th:content="${_csrf.token}"/>
+    <meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <i class="fas fa-user-plus me-2"></i>
+                        Регистрация нового OAuth2 клиента
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <form id="registerClientForm">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="clientName" class="form-label">Название клиента *</label>
+                                    <input type="text" class="form-control" id="clientName" required>
+                                    <div class="form-text">Человекочитаемое название приложения</div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="clientId" class="form-label">Client ID *</label>
+                                    <input type="text" class="form-control" id="clientId" required
+                                           pattern="^[a-zA-Z0-9_-]+$">
+                                    <div class="form-text">Уникальный идентификатор (только буквы, цифры, дефис и подчеркивание)</div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Grant Types *</label>
+                                    <div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="grantClientCredentials"
+                                                   value="client_credentials">
+                                            <label class="form-check-label" for="grantClientCredentials">
+                                                Client Credentials (сервис-к-сервису)
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="grantAuthCode"
+                                                   value="authorization_code">
+                                            <label class="form-check-label" for="grantAuthCode">
+                                                Authorization Code (веб-приложения)
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="grantRefreshToken"
+                                                   value="refresh_token">
+                                            <label class="form-check-label" for="grantRefreshToken">
+                                                Refresh Token
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3" id="redirectUrisGroup" style="display: none;">
+                                    <label for="redirectUris" class="form-label">Redirect URIs</label>
+                                    <textarea class="form-control" id="redirectUris" rows="3"
+                                              placeholder="http://localhost:3000/callback&#10;https://myapp.com/oauth/callback"></textarea>
+                                    <div class="form-text">По одному URI на строку (обязательно для Authorization Code)</div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Scopes *</label>
+                                    <div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="scopeRead" value="read">
+                                            <label class="form-check-label" for="scopeRead">read</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="scopeWrite" value="write">
+                                            <label class="form-check-label" for="scopeWrite">write</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="scopeCreate" value="create">
+                                            <label class="form-check-label" for="scopeCreate">create</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="scopeUpdate" value="update">
+                                            <label class="form-check-label" for="scopeUpdate">update</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="scopeDelete" value="delete">
+                                            <label class="form-check-label" for="scopeDelete">delete</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="scopeExecute" value="execute">
+                                            <label class="form-check-label" for="scopeExecute">execute</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="scopeOpenid" value="openid">
+                                            <label class="form-check-label" for="scopeOpenid">openid</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="scopeProfile" value="profile">
+                                            <label class="form-check-label" for="scopeProfile">profile</label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="clientSecretExpires" class="form-label">Срок действия Client Secret (дней)</label>
+                                    <input type="number" class="form-control" id="clientSecretExpires" min="1" max="365" value="90">
+                                    <div class="form-text">Оставьте пустым для бессрочного secret</div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="accessTokenTtl" class="form-label">Время жизни Access Token (секунды)</label>
+                                    <input type="number" class="form-control" id="accessTokenTtl" min="60" value="3600">
+                                </div>
+
+                                <div class="mb-3" id="refreshTokenTtlGroup" style="display: none;">
+                                    <label for="refreshTokenTtl" class="form-label">Время жизни Refresh Token (секунды)</label>
+                                    <input type="number" class="form-control" id="refreshTokenTtl" min="3600" value="2592000">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="requireAuthorizationConsent">
+                                        <label class="form-check-label" for="requireAuthorizationConsent">
+                                            Требовать подтверждение авторизации
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="requireProofKey">
+                                        <label class="form-check-label" for="requireProofKey">
+                                            Требовать PKCE (Proof Key for Code Exchange)
+                                        </label>
+                                    </div>
+                                    <div class="form-check" id="reuseRefreshTokensGroup" style="display: none;">
+                                        <input class="form-check-input" type="checkbox" id="reuseRefreshTokens" checked>
+                                        <label class="form-check-label" for="reuseRefreshTokens">
+                                            Переиспользовать Refresh Tokens
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="/admin/clients" class="btn btn-secondary me-md-2">
+                                <i class="fas fa-arrow-left me-2"></i>
+                                Назад
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-user-plus me-2"></i>
+                                Зарегистрировать клиента
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <div class="modal fade" id="registrationResultModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-check-circle text-success me-2"></i>
+                        Клиент успешно зарегистрирован
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Внимание!</strong> Сохраните Client Secret в безопасном месте.
+                        Он больше не будет отображаться в системе.
+                    </div>
+                    <div id="registrationResult"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-primary" onclick="copyClientCredentials()">
+                        <i class="fas fa-copy me-2"></i>
+                        Копировать данные
+                    </button>
+                    <a href="/admin/clients" class="btn btn-primary">
+                        <i class="fas fa-list me-2"></i>
+                        К списку клиентов
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

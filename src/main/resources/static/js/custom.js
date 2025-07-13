@@ -197,11 +197,13 @@ async function copyToClipboard(text, successMessage = 'Скопировано в
 }
 
 // Функция для показа toast уведомлений
-function showToast(message, type) {
+function showToast(message, type = 'info') {
+    const toastId = 'toast-' + Date.now();
     const toastHtml = `
-        <div class="toast align-items-center text-white bg-${type} border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div id="${toastId}" class="toast align-items-center text-white bg-${type} border-0" role="alert" aria-live="assertive" aria-atomic="true">
             <div class="d-flex">
                 <div class="toast-body">
+                    <i class="fas fa-${getToastIcon(type)} me-2"></i>
                     ${message}
                 </div>
                 <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
@@ -212,20 +214,35 @@ function showToast(message, type) {
     let toastContainer = document.querySelector('.toast-container');
     if (!toastContainer) {
         toastContainer = document.createElement('div');
-        toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+        toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+        toastContainer.style.zIndex = '9999';
         document.body.appendChild(toastContainer);
     }
 
     toastContainer.insertAdjacentHTML('beforeend', toastHtml);
 
-    const toast = toastContainer.lastElementChild;
-    const bsToast = new bootstrap.Toast(toast);
+    const toastElement = document.getElementById(toastId);
+    const bsToast = new bootstrap.Toast(toastElement, {
+        autohide: true,
+        delay: 5000
+    });
+
     bsToast.show();
 
     // Удаляем toast после скрытия
-    toast.addEventListener('hidden.bs.toast', function() {
-        toast.remove();
+    toastElement.addEventListener('hidden.bs.toast', function() {
+        toastElement.remove();
     });
+}
+
+function getToastIcon(type) {
+    switch(type) {
+        case 'success': return 'check-circle';
+        case 'danger': return 'exclamation-triangle';
+        case 'warning': return 'exclamation-triangle';
+        case 'info': return 'info-circle';
+        default: return 'info-circle';
+    }
 }
 
 // Функция для форматирования времени

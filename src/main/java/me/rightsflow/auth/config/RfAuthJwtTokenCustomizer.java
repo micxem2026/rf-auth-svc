@@ -1,6 +1,8 @@
 package me.rightsflow.auth.config;
 
 import lombok.extern.slf4j.Slf4j;
+import me.rightsflow.auth.entity.OAuth2RegisteredClientEntity;
+import me.rightsflow.auth.repository.OAuth2RegisteredClientRepository;
 import me.rightsflow.auth.service.RfAuthUserDetailsService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
@@ -8,11 +10,13 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationGrantAuthenticationToken;
+import org.springframework.security.oauth2.server.authorization.authentication.OAuth2ClientAuthenticationToken;
 import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -27,6 +31,12 @@ public class RfAuthJwtTokenCustomizer implements OAuth2TokenCustomizer<JwtEncodi
     // По умолчанию - 1 час (3600 секунд)
     @Value("${rightsflow.oauth.token.default-ttl-seconds:3600}")
     private long defTokenTtl;
+
+    private OAuth2RegisteredClientRepository clientsRepo;
+
+    public RfAuthJwtTokenCustomizer(OAuth2RegisteredClientRepository clientsRepo) {
+        this.clientsRepo = clientsRepo;
+    }
 
     @Override
     public void customize(JwtEncodingContext context) {
@@ -43,33 +53,50 @@ public class RfAuthJwtTokenCustomizer implements OAuth2TokenCustomizer<JwtEncodi
             // Наш кастомный параметр должен быть здесь
             Object requestedTtlObj = additionalParameters.get("requested_token_ttl");
 
+            OAuth2RegisteredClientEntity entity = null;
+            if (tokenRequest.getPrincipal() instanceof OAuth2ClientAuthenticationToken principal) {
+                entity = clientsRepo.findByClientId(principal.getName()).orElse(null);
+            }
+
+            Instant clientSecretExpirationDate = null;
+            if (entity != null) {
+                clientSecretExpirationDate = entity.getClientSecretExpiresAt() != null ? entity.getClientSecretExpiresAt().atZone(ZoneId.systemDefault()).toInstant() : null;
+            }
+
+            log.debug("Found clientSecretExpirationDate: {}", clientSecretExpirationDate != null ? LocalDateTime.ofInstant(clientSecretExpirationDate, ZoneId.systemDefault()) : null);
+
+            // 1. Получаем существующие клеймы, чтобы узнать время создания (iat)
+            var claims = context.getClaims();
+            Instant issuedAt = claims.build().getIssuedAt();
+            if (issuedAt == null) {
+                issuedAt = Instant.now();
+                claims.issuedAt(issuedAt); // Установим, если его не было
+            }
+
             if (requestedTtlObj != null) {
                 try {
                     long requestedTtl = Long.parseLong(requestedTtlObj.toString());
                     log.info("Client '{}' requested token TTL: {} seconds.", context.getRegisteredClient().getClientId(), requestedTtl);
 
-                    // 1. Запрошенный TTL не должен быть отрицательным
+                    // 2. Запрошенный TTL не должен быть отрицательным
                     if (requestedTtl <= 0) {
                         log.warn("Requested TTL ({}) is invalid. Using default TTL.", requestedTtl);
                         requestedTtl = defTokenTtl;
                     }
 
-                    // 2. Ограничиваем запрошенный TTL максимальным значением с сервера
+                    // 3. Ограничиваем запрошенный TTL максимальным значением с сервера
                     long finalTtl = Math.min(requestedTtl, maxTokenTtl);
                     if (finalTtl < requestedTtl) {
                         log.warn("Requested TTL ({}) exceeds server maximum ({}). Clamping to max.", requestedTtl, maxTokenTtl);
                     }
 
-                    // 3. Получаем существующие клеймы, чтобы узнать время создания (iat)
-                    var claims = context.getClaims();
-                    Instant issuedAt = claims.build().getIssuedAt();
-                    if (issuedAt == null) {
-                        issuedAt = Instant.now();
-                        claims.issuedAt(issuedAt); // Установим, если его не было
-                    }
-
                     // 4. Вычисляем новое время истечения и обновляем клейм 'exp'
                     Instant newExpiry = issuedAt.plusSeconds(finalTtl);
+                    if (clientSecretExpirationDate != null && newExpiry.isAfter(clientSecretExpirationDate)) {
+                        newExpiry = clientSecretExpirationDate;
+                        finalTtl = (newExpiry.toEpochMilli() - issuedAt.toEpochMilli()) / 1000;
+                        log.warn("Clamping ttl to client secret expiration date ({}).", finalTtl);
+                    }
                     claims.expiresAt(newExpiry);
 
                     var localDateTime = LocalDateTime.ofInstant(newExpiry, ZoneOffset.systemDefault());
@@ -79,6 +106,14 @@ public class RfAuthJwtTokenCustomizer implements OAuth2TokenCustomizer<JwtEncodi
                 } catch (NumberFormatException e) {
                     log.warn("Invalid format for 'requested_token_ttl' parameter: '{}'. Using default TTL.", requestedTtlObj);
                 }
+            } else {
+                Instant newExpiry = issuedAt.plusSeconds(defTokenTtl);
+                if (clientSecretExpirationDate != null && newExpiry.isAfter(clientSecretExpirationDate)) {
+                    newExpiry = clientSecretExpirationDate;
+                    long finalTtl = (newExpiry.toEpochMilli() - issuedAt.toEpochMilli()) / 1000;
+                    log.warn("Clamping ttl to client secret expiration date ({}).", finalTtl);
+                }
+                claims.expiresAt(newExpiry);
             }
         } else {
             log.warn("Authorization grant is not an instance of OAuth2AuthorizationGrantAuthenticationToken.");
