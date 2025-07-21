@@ -18,4 +18,4 @@ RUN apk --no-cache add msttcorefonts-installer fontconfig && update-ms-fonts && 
 COPY --from=builder /src/build/libs/rf-auth-svc.jar rf-auth-svc.jar
 ENV TZ=Europe/Moscow
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
-ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-Xms256m", "-Xmx384m", "-jar","/rf-auth-svc.jar"]
+ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-Xms256m", "-Xmx512m", "-jar","/rf-auth-svc.jar"]

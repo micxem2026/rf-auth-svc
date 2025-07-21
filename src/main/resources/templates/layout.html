@@ -13,7 +13,7 @@
 <body>
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
     <div class="container">
-        <a class="navbar-brand" href="/">
+        <a class="navbar-brand" href="/auth">
             <i class="fas fa-shield-alt me-2"></i>
             Authorization Server
         </a>
@@ -25,11 +25,11 @@
                         Администрирование
                     </a>
                     <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="/admin/clients">
+                        <li><a class="dropdown-item" href="/auth/admin/clients">
                             <i class="fas fa-users-cog me-2"></i>
                             OAuth2 клиенты
                         </a></li>
-                        <li><a class="dropdown-item" href="/admin/users#users-panel">
+                        <li><a class="dropdown-item" href="/auth/admin/users#users-panel">
                             <i class="fas fa-users-cog me-2"></i>
                             Пользователи
                         </a></li>
@@ -49,7 +49,7 @@
                 </form>
             </div>
             <div sec:authorize="isAnonymous()">
-                <a class="nav-link" href="/login">
+                <a class="nav-link" href="/auth/login">
                     <i class="fas fa-sign-in-alt me-1"></i>
                     Вход
                 </a>

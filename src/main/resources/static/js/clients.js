@@ -107,7 +107,7 @@ function startAuthCodeFlow() {
     const scopes = document.getElementById('testScopes').value;
     const redirectUri = document.getElementById('testRedirectUri').value;
 
-    const authUrl = `/oauth2/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&scope=${encodeURIComponent(scopes)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=test-${Date.now()}`;
+    const authUrl = `/auth/oauth2/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&scope=${encodeURIComponent(scopes)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=test-${Date.now()}`;
 
     // Открываем в новом окне
     window.open(authUrl, 'oauth2-auth', 'width=600,height=700,scrollbars=yes');
@@ -161,7 +161,7 @@ async function testSelectedClient() {
             bodyParams.append('requested_token_ttl', requestedTtl);
         }
 
-        const response = await fetch('/oauth2/token', {
+        const response = await fetch('/auth/oauth2/token', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
@@ -214,7 +214,7 @@ function displayClients(clients) {
             <div class="text-center text-muted p-4">
                 <i class="fas fa-inbox fa-3x mb-3"></i>
                 <p>Пока нет зарегистрированных клиентов</p>
-                <a href="/admin/clients/register" class="btn btn-primary mt-2">
+                <a href="/auth/admin/clients/register" class="btn btn-primary mt-2">
                     <i class="fas fa-plus me-2"></i>
                     Зарегистрировать первого клиента
                 </a>
@@ -338,7 +338,7 @@ async function editClient(clientId) {
         const headers = {};
         headers[csrfHeader] = csrfToken;
 
-        const response = await fetch(`/admin/api/clients/${clientId}`, {
+        const response = await fetch(`/auth/admin/api/clients/${clientId}`, {
             method: 'GET',
             headers: headers
         });
@@ -475,7 +475,7 @@ async function saveClientChanges() {
         };
         headers[csrfHeader] = csrfToken;
 
-        const response = await fetch(`/admin/api/clients/${originalClientId}`, {
+        const response = await fetch(`/auth/admin/api/clients/${originalClientId}`, {
             method: 'PUT',
             headers: headers,
             body: JSON.stringify(formData)
@@ -591,7 +591,7 @@ document.getElementById('confirmDeleteBtn').addEventListener('click', async func
         const headers = {};
         headers[csrfHeader] = csrfToken;
 
-        const response = await fetch(`/admin/api/clients/${currentDeleteClientId}`, {
+        const response = await fetch(`/auth/admin/api/clients/${currentDeleteClientId}`, {
             method: 'DELETE',
             headers: headers // Добавляем заголовки в запрос
         });

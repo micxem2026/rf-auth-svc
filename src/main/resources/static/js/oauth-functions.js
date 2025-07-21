@@ -21,7 +21,7 @@ async function exchangeCodeForTokens() {
             bodyParams.append('requested_token_ttl', requestedTtl);
         }
 
-        const response = await fetch('/oauth2/token', {
+        const response = await fetch('/auth/oauth2/token', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
@@ -72,7 +72,7 @@ async function testClientCredentialsFlow() {
             bodyParams.append('requested_token_ttl', requestedTtl);
         }
 
-        const response = await fetch('/oauth2/token', {
+        const response = await fetch('/auth/oauth2/token', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',

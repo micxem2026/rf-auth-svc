@@ -76,7 +76,7 @@ async function fetchAndDisplayUsers() {
     tableBody.innerHTML = `<tr><td colspan="8" class="text-center"><div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Загрузка...</span></div></td></tr>`;
 
     try {
-        const response = await fetch('/admin/api/users');
+        const response = await fetch('/auth/admin/api/users');
         if (!response.ok) throw new Error('Failed to fetch users');
         const users = await response.json();
 
@@ -129,7 +129,7 @@ function openAddUserModal() {
 
 async function openEditUserModal(id) {
     try {
-        const response = await fetch(`/admin/api/users/${id}`);
+        const response = await fetch(`/auth/admin/api/users/${id}`);
         if (!response.ok) throw new Error('Failed to fetch user data');
         const user = await response.json();
 
@@ -179,7 +179,7 @@ async function handleSaveUser() {
         delete userData.password;
     }
 
-    const url = id ? `/admin/api/users/${id}` : '/admin/api/users';
+    const url = id ? `/auth/admin/api/users/${id}` : '/auth/admin/api/users';
     const method = id ? 'PUT' : 'POST';
 
     try {
@@ -213,7 +213,7 @@ function confirmDeleteUser(id, username) {
     const confirmBtn = document.getElementById('confirmDeleteUserBtn');
     confirmBtn.onclick = async () => {
         try {
-            const response = await fetch(`/admin/api/users/${userToDeleteId}`, {
+            const response = await fetch(`/auth/admin/api/users/${userToDeleteId}`, {
                 method: 'DELETE',
                 headers: getCsrfHeaders()
             });
@@ -240,7 +240,7 @@ async function fetchAndDisplayRoles() {
     tableBody.innerHTML = `<tr><td colspan="4" class="text-center"><div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Загрузка...</span></div></td></tr>`;
 
     try {
-        const response = await fetch('/admin/api/roles');
+        const response = await fetch('/auth/admin/api/roles');
         if (!response.ok) throw new Error('Failed to fetch roles');
         const roles = await response.json();
 
@@ -276,7 +276,7 @@ async function handleAddRole(event) {
     };
 
     try {
-        const response = await fetch('/admin/api/roles', {
+        const response = await fetch('/auth/admin/api/roles', {
             method: 'POST',
             headers: getCsrfHeaders(),
             body: JSON.stringify(roleData)
@@ -286,6 +286,7 @@ async function handleAddRole(event) {
             showToast('Роль успешно создана', 'success');
             document.getElementById('addRoleForm').reset();
             window.location.href = window.location.pathname + '#roles-panel';
+            fetchAndDisplayRoles();
         } else {
             const error = await response.json();
             showToast(error.error || 'Ошибка создания роли', 'danger');
@@ -299,13 +300,14 @@ async function handleAddRole(event) {
 async function handleDeleteRole(id) {
     if (!confirm('Вы уверены, что хотите удалить эту роль?')) return;
     try {
-        const response = await fetch(`/admin/api/roles/${id}`, {
+        const response = await fetch(`/auth/admin/api/roles/${id}`, {
             method: 'DELETE',
             headers: getCsrfHeaders()
         });
         if (response.ok) {
             showToast('Роль удалена', 'success');
             window.location.href = window.location.pathname + '#roles-panel';
+            fetchAndDisplayRoles();
         } else {
             const error = await response.json();
             showToast(error.error || 'Ошибка удаления роли', 'danger');

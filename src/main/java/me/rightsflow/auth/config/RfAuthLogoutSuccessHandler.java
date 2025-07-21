@@ -52,7 +52,7 @@ public class RfAuthLogoutSuccessHandler implements LogoutSuccessHandler {
         }
 
         // По умолчанию редиректим на страницу логина с параметром logout
-        return "/login?logout=true";
+        return "/auth/login?logout=true";
     }
 
     private String getClientIpAddress(HttpServletRequest request) {

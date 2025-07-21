@@ -125,6 +125,7 @@ public class RfAuthJwtTokenCustomizer implements OAuth2TokenCustomizer<JwtEncodi
             if (AuthorizationGrantType.CLIENT_CREDENTIALS.equals(context.getAuthorizationGrantType())) {
                 context.getClaims().claim("client_id", context.getRegisteredClient().getClientId());
                 context.getClaims().claim("scope", context.getAuthorizedScopes());
+                context.getClaims().claim("user_type", "SERVICE");
 
                 log.debug("Customized JWT for client credentials grant: client_id={}, scopes={}",
                         context.getRegisteredClient().getClientId(), context.getAuthorizedScopes());
@@ -138,6 +139,7 @@ public class RfAuthJwtTokenCustomizer implements OAuth2TokenCustomizer<JwtEncodi
                 context.getClaims().claim("username", userPrincipal.getUsername());
                 context.getClaims().claim("display_name", userPrincipal.getDisplayName());
                 context.getClaims().claim("email", userPrincipal.getEmail());
+                context.getClaims().claim("user_type", userPrincipal.getUserType());
                 context.getClaims().claim("roles", userPrincipal.getAuthorities().stream()
                         .map(GrantedAuthority::getAuthority)
                         .collect(Collectors.toList()));

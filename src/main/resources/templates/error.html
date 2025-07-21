@@ -52,7 +52,7 @@
 
 
                     <div class="d-grid gap-2 d-md-flex justify-content-md-center">
-                        <a href="/" class="btn btn-primary me-md-2">
+                        <a href="/auth" class="btn btn-primary me-md-2">
                             <i class="fas fa-home me-2"></i>
                             На главную
                         </a>
@@ -62,7 +62,7 @@
                             Назад
                         </button>
 
-                        <a th:if="${showLoginButton}" href="/login" class="btn btn-success me-md-2">
+                        <a th:if="${showLoginButton}" href="/auth/login" class="btn btn-success me-md-2">
                             <i class="fas fa-sign-in-alt me-2"></i>
                             Войти
                         </a>
@@ -110,7 +110,7 @@
         if (errorType === 'unauthorized') {
             setTimeout(function() {
                 if (confirm('Перейти на страницу входа?')) {
-                    window.location.href = '/login';
+                    window.location.href = '/auth/login';
                 }
             }, 5000);
         }

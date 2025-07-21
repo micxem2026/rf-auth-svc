@@ -222,7 +222,7 @@ public class AuthorizationServerConfig {
     public AuthorizationServerSettings authorizationServerSettings() {
         log.debug("ISSUER: {}:{}", issuerHost, issuerPort);
         return AuthorizationServerSettings.builder()
-                .issuer("http://%s:%d".formatted(issuerHost, issuerPort))
+                .issuer("http://%s:%d/auth".formatted(issuerHost, issuerPort))
                 .build();
     }
 

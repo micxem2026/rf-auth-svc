@@ -68,6 +68,10 @@ public class RfAuthUserDetailsService implements UserDetailsService {
             return user.getEmail();
         }
 
+        public String getUserType() {
+            return user.getUserType();
+        }
+
         @Override
         public Collection<? extends GrantedAuthority> getAuthorities() {
             return user.getRoles().stream()

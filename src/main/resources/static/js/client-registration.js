@@ -79,7 +79,7 @@ async function handleFormSubmit(e) {
         console.log('Sending POST request to /admin/api/clients');
         console.log('Headers:', headers);
 
-        const response = await fetch('/admin/api/clients', {
+        const response = await fetch('/auth/admin/api/clients', {
             method: 'POST',
             headers: headers,
             body: JSON.stringify(formData)
