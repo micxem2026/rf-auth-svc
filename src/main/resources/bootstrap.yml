@@ -7,7 +7,7 @@ spring:
     name: rf-auth-svc
   cloud:
     config:
-      uri: ${RF_CONFIG_SERVICE_URL:'http://localhost:8888'}
+      uri: ${RF_CONFIG_SERVICE_URL:http://localhost:8888}
   thymeleaf:
     cache: false
     mode: HTML
@@ -44,4 +44,4 @@ eureka:
     hostname: ${RF_AUTH_SVC_HOSTNAME:${hostname:localhost}}
   client:
     serviceUrl:
-      defaultZone: ${RF_EUREKA_SERVICE_URL:'http://localhost:8761/eureka/'}
+      defaultZone: ${RF_EUREKA_SERVICE_URL:http://localhost:8761/eureka/}
