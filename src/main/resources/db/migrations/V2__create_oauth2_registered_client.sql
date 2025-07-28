@@ -51,7 +51,7 @@ INSERT INTO oauth2_registered_client (
              'Single Page Application Client',
              'client_secret_basic',
              'authorization_code,refresh_token',
-             'http://localhost:9000/callback',
+             'http://localhost:9000/auth/callback',
              'openid,profile,read,update,execute,delete,create',
              '{"@class":"java.util.Map","settings.client.require-authorization-consent":false,"settings.client.require-proof-key":false}',
              '{"@class":"java.util.Map","settings.token.access-token-time-to-live":["java.time.Duration",3600.000000000],"settings.token.refresh-token-time-to-live":["java.time.Duration",2592000.000000000],"settings.token.reuse-refresh-tokens":true}',

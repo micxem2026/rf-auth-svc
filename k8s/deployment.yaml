@@ -1,4 +1,15 @@
 apiVersion: v1
+kind: Secret
+metadata:
+  name: rf-auth-secret
+  namespace: develop
+type: Opaque
+data:
+  # echo -n "users_db" | base64 -> dXNlcnNfZGI=
+  postgres-password: cmYtT3duZXIyNQ==
+  postgres-user: cmlnaHRzZmxvdw==
+---
+apiVersion: v1
 kind: ConfigMap
 metadata:
   name: rf-auth-svc
@@ -62,6 +73,16 @@ spec:
                 configMapKeyRef:
                   name: rf-config-svc
                   key: serviceURL
+            - name: PG_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: rf-auth-secret
+                  key: postgres-user
+            - name: PG_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rf-auth-secret
+                  key: postgres-password
           readinessProbe:
             httpGet:
               path: /actuator/health/liveness
