@@ -85,7 +85,7 @@ spec:
                   key: postgres-password
           readinessProbe:
             httpGet:
-              path: /actuator/health/liveness
+              path: /auth/actuator/health/liveness
               port: 9000
             initialDelaySeconds: 20
             periodSeconds: 10
@@ -94,7 +94,7 @@ spec:
             failureThreshold: 15
           livenessProbe:
             httpGet:
-              path: /actuator/health/liveness
+              path: /auth/actuator/health/liveness
               port: 9000
             initialDelaySeconds: 20
             periodSeconds: 10
