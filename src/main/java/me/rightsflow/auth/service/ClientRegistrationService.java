@@ -54,7 +54,8 @@ public class ClientRegistrationService {
     );
 
     private static final Set<String> ALL_AVAILABLE_SCOPES = Set.of(
-            "read", "write", "create", "update", "delete", "execute",
+            "read", "create", "update", "delete", "execute",
+            "admin", "manager", "user",
             "openid", "profile", "email"
     );
 
@@ -98,6 +99,7 @@ public class ClientRegistrationService {
                 .clientSecret(encodedClientSecret)
                 .clientSecretExpiresAt(clientSecretExpiresAt)
                 .clientName(request.getClientName())
+                .clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
                 .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC);
 
         // Добавляем grant types

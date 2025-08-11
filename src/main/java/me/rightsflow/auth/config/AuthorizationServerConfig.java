@@ -31,6 +31,12 @@ import org.springframework.security.web.authentication.AuthenticationSuccessHand
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.Arrays;
+import java.util.List;
 
 @Slf4j
 @Configuration
@@ -58,6 +64,7 @@ public class AuthorizationServerConfig {
      * и настраивает обработку исключений для перенаправления неавторизованных запросов на страницу входа.
      * <p>
      * Фильтр цепочки имеет наивысший приоритет (1), чтобы обеспечить его выполнение до любых других фильтров цепочек.
+     *
      * @param http Объект HttpSecurity, используемый для создания цепочки безопасности.
      * @return Созданный bean цепочки безопасности.
      * @throws Exception Если происходит ошибка при создании цепочки безопасности.
@@ -73,20 +80,21 @@ public class AuthorizationServerConfig {
         http.getConfigurer(OAuth2AuthorizationServerConfigurer.class)
                 .oidc((oidc) ->
                         oidc.clientRegistrationEndpoint(Customizer.withDefaults())
-                     );
+                );
 
         // Определяем, какие URL-пути должна обрабатывать эта цепочка
         http
-           .securityMatcher(
-                    "/oauth2/**",
-                    "/connect/**",
-                    "/.well-known/jwks.json",
-                    "/.well-known/openid-configuration",
-                    "/.well-known/base64encode"
-            )
-            .exceptionHandling(exceptions -> exceptions
-                .authenticationEntryPoint(new LoginUrlAuthenticationEntryPoint("/login"))
-            );
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .securityMatcher(
+                        "/oauth2/**",
+                        "/connect/**",
+                        "/.well-known/jwks.json",
+                        "/.well-known/openid-configuration",
+                        "/.well-known/base64encode"
+                )
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint(new LoginUrlAuthenticationEntryPoint("/login"))
+                );
 
         return http.build();
     }
@@ -117,6 +125,7 @@ public class AuthorizationServerConfig {
     @Order(2)
     public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
         http
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .securityMatcher(
                         "/",
                         "/login",
@@ -130,16 +139,16 @@ public class AuthorizationServerConfig {
                         .jwt(Customizer.withDefaults())
                 )
                 .authorizeHttpRequests(authorize -> authorize
-                          //.dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR).permitAll()
-                          .requestMatchers("/actuator/**",
-                                           "/error",
-                                           "/login",
-                                           "/logout",
-                                           "/").permitAll()
-                          .requestMatchers("/api/**",
-                                           "/userinfo").authenticated()
-                          .requestMatchers("/admin/**").hasRole("ADMIN")
-                          .anyRequest().authenticated()
+                        //.dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR).permitAll()
+                        .requestMatchers("/actuator/**",
+                                "/error",
+                                "/login",
+                                "/logout",
+                                "/").permitAll()
+                        .requestMatchers("/api/**",
+                                "/userinfo").authenticated()
+                        .requestMatchers("/admin/**").hasRole("ADMIN")
+                        .anyRequest().authenticated()
                 )
                 .formLogin(form -> form
                         .loginPage("/login")
@@ -174,6 +183,41 @@ public class AuthorizationServerConfig {
         return http.build();
     }
 
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+
+        // Разрешенные источники (origins)
+        configuration.setAllowedOriginPatterns(List.of(
+                "*"
+        ));
+
+        // Разрешенные методы
+        configuration.setAllowedMethods(Arrays.asList(
+                "GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"
+        ));
+
+        // Разрешенные заголовки
+        configuration.setAllowedHeaders(List.of(
+                "*"
+        ));
+
+        // Разрешить отправку cookies и авторизационных заголовков
+        configuration.setAllowCredentials(true);
+
+        // Заголовки, которые клиент может читать
+        configuration.setExposedHeaders(Arrays.asList(
+                "Authorization", "Cache-Control", "Content-Type"
+        ));
+
+        // Время кэширования preflight запроса
+        configuration.setMaxAge(3600L);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
+    }
+
     /**
      * Возвращает репозиторий на основе JPA для сущностей {@link RegisteredClient}
      * вместо стандартной реализации InMemory.
@@ -181,6 +225,7 @@ public class AuthorizationServerConfig {
      * Это необходимо для хранения и извлечения зарегистрированных клиентов из базы данных.
      * <p>
      * Возвращаемый репозиторий является экземпляром {@link JpaRegisteredClientRepository}.
+     *
      * @return JPA-based репозиторий для зарегистрированных клиентов.
      */
     @Bean
