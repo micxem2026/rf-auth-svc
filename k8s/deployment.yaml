@@ -103,11 +103,11 @@ spec:
             failureThreshold: 15
           resources:
             requests:
-              cpu: "100m"
+              cpu: "200m"
               memory: "256Mi"
             limits:
-              cpu: "200m"
-              memory: "384Mi"
+              cpu: "500m"
+              memory: "512Mi"
       restartPolicy: Always
       imagePullSecrets:
         - name: gitlab-registry-secret
