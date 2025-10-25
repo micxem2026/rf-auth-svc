@@ -1,63 +1,63 @@
 <configuration>
 
-    <!--Это настройки для продакшена, здесь ничего менять нельзя
-        если надо что-то менять, надо создать свой и прицепить его в локальном application.yml-->
-
-
     <!--Чтобы в идее было читабельно, надо включить профиль local. -->
     <!--Запись логов в файлы отключена, чтобы писало в файлы надо включить профиль filelog -->
-    <!--и указать в командной строке имя файла logging.file=anotherlog/mr2-server-core_first.log-->
-
+    <!--и указать в командной строке имя файла logging.file=anotherlog/rf-contract-svc.log-->
 
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
-    <springProperty scope="context" name="springAppName" source="spring.application.name"/>
+    <springProperty scope="context" name="spring_app_name" source="spring.application.name"/>
     <property name="CONSOLE_LOG_PATTERN"
               value="%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(${LOG_LEVEL_PATTERN:-%5p}) %clr(${PID:- }){magenta} %clr(---){faint} %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n${LOG_EXCEPTION_CONVERSION_WORD:-%wEx}"/>
 
     <!-- Профиль для локальной разработки -->
     <springProfile name="local">
-        <appender name="STDOUT_STANDART" class="ch.qos.logback.core.ConsoleAppender">
+        <appender name="STDOUT_STANDARD" class="ch.qos.logback.core.ConsoleAppender">
             <encoder>
                 <pattern>${CONSOLE_LOG_PATTERN}</pattern>
             </encoder>
         </appender>
 
         <root level="INFO">
-            <appender-ref ref="STDOUT_STANDART"/>
+            <appender-ref ref="STDOUT_STANDARD"/>
         </root>
     </springProfile>
 
     <!-- Профиль для продакшена (все кроме local) -->
     <springProfile name="!local">
-        <appender name="STDOUT_JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <appender name="JSON_STDOUT" class="ch.qos.logback.core.ConsoleAppender">
             <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
                 <providers>
-                    <timestamp>
-                        <fieldName>ts</fieldName>
-                    </timestamp>
+                    <logLevel>
+                        <fieldName>level</fieldName>
+                    </logLevel>
+                    <loggerName>
+                        <fieldName>logger</fieldName>
+                        <shortenedLoggerNameLength>40</shortenedLoggerNameLength>
+                    </loggerName>
+                    <threadName>
+                        <fieldName>thread</fieldName>
+                    </threadName>
+                    <message>
+                        <fieldName>message</fieldName>
+                    </message>
+                    <stackTrace>
+                        <fieldName>stacktrace</fieldName>
+                    </stackTrace>
                     <pattern>
                         <pattern>
                             {
-                            "severity": "%level",
-                            "service": "${springAppName:-}",
-                            "trace": "%X{X-B3-TraceId:-}",
-                            "span": "%X{X-B3-SpanId:-}",
-                            "parent": "%X{X-B3-ParentSpanId:-}",
-                            "exportable": "%X{X-Span-Export:-}",
-                            "pid": "${PID:-}",
-                            "thread": "%thread",
-                            "class": "%logger{40}",
-                            "rest": "%message",
-                            "stacktrace": "%exception"
+                            "pid": "${PID:-}"
                             }
                         </pattern>
                     </pattern>
+                    <mdc/>
+                    <arguments/>
                 </providers>
             </encoder>
         </appender>
 
         <root level="INFO">
-            <appender-ref ref="STDOUT_JSON"/>
+            <appender-ref ref="JSON_STDOUT"/>
         </root>
     </springProfile>
 
@@ -79,6 +79,5 @@
             <appender-ref ref="FILE"/>
         </root>
     </springProfile>
-
 
 </configuration>

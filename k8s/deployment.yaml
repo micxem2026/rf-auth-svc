@@ -15,7 +15,7 @@ metadata:
   name: rf-auth-svc
 data:
   hostname: auth-svc
-  profiles: local
+  profiles: kuber
   users_db: pg-users-db-svc
 ---
 apiVersion: apps/v1
@@ -34,6 +34,10 @@ spec:
       name: rf-auth-svc
       labels:
         app: rf-auth-svc
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/auth/actuator/prometheus"
+        prometheus.io/port: "9000" # <-- порт приложения
     spec:
       #      hostAliases:
       #        - ip: "192.168.1.22"
@@ -44,7 +48,8 @@ spec:
           image: gitlab.micxem:5050/rights-flow/rf-auth-svc:latest
           imagePullPolicy: Always
           ports:
-            - containerPort: 9000
+            - name: http
+              containerPort: 9000
               protocol: TCP
           args: [ "--spring.profiles.active=$(RF_AUTH_SVC_PROFILES)"]
           env:
@@ -83,6 +88,17 @@ spec:
                 secretKeyRef:
                   name: rf-auth-secret
                   key: postgres-password
+            - name: RF_OTLP_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: rf-props
+                  key: otlp_endpoint
+            - name: RF_TRACE_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  name: rf-props
+                  key: rf_trace_enabled
+
           readinessProbe:
             httpGet:
               path: /auth/actuator/health/liveness
