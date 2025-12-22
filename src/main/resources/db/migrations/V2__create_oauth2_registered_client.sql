@@ -1,5 +1,5 @@
 -- Создание таблицы для зарегистрированных OAuth2 клиентов
-CREATE TABLE oauth2_registered_client (
+CREATE TABLE IF NOT EXISTS oauth2_registered_client (
                                           id varchar(100) NOT NULL,
                                           client_id varchar(100) NOT NULL,
                                           client_id_issued_at timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -19,7 +19,7 @@ CREATE TABLE oauth2_registered_client (
                                           PRIMARY KEY (id)
 );
 
-CREATE UNIQUE INDEX oauth2_registered_client_client_id_idx ON oauth2_registered_client (client_id);
+CREATE UNIQUE INDEX IF NOT EXISTS oauth2_registered_client_client_id_idx ON oauth2_registered_client (client_id);
 
 -- Добавляем системного клиента svcClient в базу данных
 INSERT INTO oauth2_registered_client (
@@ -37,7 +37,8 @@ INSERT INTO oauth2_registered_client (
              '{"@class":"java.util.Map","settings.client.require-authorization-consent":false,"settings.client.require-proof-key":false}',
              '{"@class":"java.util.Map","settings.token.access-token-time-to-live":["java.time.Duration",3600.000000000],"settings.token.refresh-token-time-to-live":["java.time.Duration",2592000.000000000],"settings.token.reuse-refresh-tokens":true}',
              'system'
-         );
+         )
+ON CONFLICT (ID) DO NOTHING;
 
 -- Добавляем spa-client в базу данных
 INSERT INTO oauth2_registered_client (
@@ -56,4 +57,5 @@ INSERT INTO oauth2_registered_client (
              '{"@class":"java.util.Map","settings.client.require-authorization-consent":false,"settings.client.require-proof-key":false}',
              '{"@class":"java.util.Map","settings.token.access-token-time-to-live":["java.time.Duration",3600.000000000],"settings.token.refresh-token-time-to-live":["java.time.Duration",2592000.000000000],"settings.token.reuse-refresh-tokens":true}',
              'system'
-         );
+         )
+ON CONFLICT (ID) DO NOTHING;
