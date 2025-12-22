@@ -45,7 +45,7 @@ spec:
       #            - "gitlab.micxem"
       containers:
         - name: rf-auth-svc
-          image: gitlab.micxem:5050/rights-flow/rf-auth-svc:latest
+          image: gitlab.me:5005/rights-flow/rf-auth-svc:latest
           imagePullPolicy: Always
           ports:
             - name: http
@@ -119,11 +119,11 @@ spec:
             failureThreshold: 15
           resources:
             requests:
-              cpu: "200m"
+              cpu: "250m"
               memory: "256Mi"
             limits:
               cpu: "500m"
-              memory: "512Mi"
+              memory: "768Mi"
       restartPolicy: Always
       imagePullSecrets:
         - name: gitlab-registry-secret
