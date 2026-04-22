@@ -179,6 +179,7 @@ public class ClientRegistrationService {
 
         // Секрет клиента не передаем в ответе
         response.setClientSecret(null);
+        response.setProtectedClient(Boolean.TRUE.equals(entity.getProtectedClient()));
 
         try {
             ClientSettings clientSettings = objectMapper.readValue(entity.getClientSettings(), ClientSettings.class);
@@ -198,8 +199,9 @@ public class ClientRegistrationService {
         OAuth2RegisteredClientEntity entity = clientRepository.findByClientId(clientId)
                 .orElseThrow(() -> new IllegalArgumentException("Client not found: " + clientId));
 
-        if ("system".equals(entity.getCreatedBy())) {
-            throw new IllegalArgumentException("Cannot delete system client");
+        if (Boolean.TRUE.equals(entity.getProtectedClient())) {
+            throw new IllegalArgumentException(
+                    "Cannot delete protected client '" + clientId + "'.");
         }
 
         if (!authentication.getName().equals(entity.getCreatedBy())) {
@@ -369,8 +371,9 @@ public class ClientRegistrationService {
     }
 
     private void validateClientAccess(OAuth2RegisteredClientEntity entity, Authentication authentication) {
-        if ("system".equals(entity.getCreatedBy())) {
-            throw new IllegalArgumentException("Cannot modify system client");
+        if (Boolean.TRUE.equals(entity.getProtectedClient())) {
+            throw new IllegalArgumentException(
+                    "Cannot modify protected client '" + entity.getClientId() + "'.");
         }
 
         // Проверяем права (только ADMIN может изменять любые клиенты)
@@ -435,6 +438,24 @@ public class ClientRegistrationService {
         user.setCreatedAt(LocalDateTime.now());
         userRepository.save(user);
         log.info("Created service user: {}", user.getUsername());
+    }
+
+    @Transactional
+    public void setProtectedFlag(String clientId, boolean value, Authentication authentication) {
+        OAuth2RegisteredClientEntity entity = clientRepository.findByClientId(clientId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Client not found: " + clientId));
+
+        // Системных клиентов (created_by = system) нельзя разблокировать
+        if ("system".equals(entity.getCreatedBy()) && !value) {
+            throw new IllegalArgumentException(
+                    "Unable to remove protection from the system client '" + clientId + "'.");
+        }
+
+        entity.setProtectedClient(value);
+        clientRepository.save(entity);
+        log.info("Client '{}' protectedClient set to {} by {}",
+                clientId, value, authentication.getName());
     }
 
 }

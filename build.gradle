@@ -1,11 +1,11 @@
 plugins {
 	id 'java'
-	id 'org.springframework.boot' version '3.5.5'
+	id 'org.springframework.boot' version '3.5.9'
 	id 'io.spring.dependency-management' version '1.1.7'
 }
 
 group = 'me.rightsflow'
-version = '0.0.1-SNAPSHOT'
+version = '0.0.2-SNAPSHOT'
 description = 'RightsFlow Auth Server'
 
 java {
@@ -67,6 +67,11 @@ dependencies {
 
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
+
+    // Spring Kafka (producer для событий инвалидации кэша прав)
+    implementation 'org.springframework.kafka:spring-kafka'
+
+    implementation 'org.owasp.encoder:encoder:1.4.0'
 
 	testImplementation 'com.h2database:h2'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'

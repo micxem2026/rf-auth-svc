@@ -2,7 +2,9 @@ package me.rightsflow.auth.config;
 
 import lombok.extern.slf4j.Slf4j;
 import me.rightsflow.auth.entity.OAuth2RegisteredClientEntity;
+import me.rightsflow.auth.entity.UserEntity;
 import me.rightsflow.auth.repository.OAuth2RegisteredClientRepository;
+import me.rightsflow.auth.repository.UserRepository;
 import me.rightsflow.auth.service.RfAuthUserDetailsService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
@@ -18,7 +20,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -32,10 +34,13 @@ public class RfAuthJwtTokenCustomizer implements OAuth2TokenCustomizer<JwtEncodi
     @Value("${rightsflow.oauth.token.default-ttl-seconds:3600}")
     private long defTokenTtl;
 
-    private OAuth2RegisteredClientRepository clientsRepo;
+    private final OAuth2RegisteredClientRepository clientsRepo;
+    private final UserRepository userRepository;
 
-    public RfAuthJwtTokenCustomizer(OAuth2RegisteredClientRepository clientsRepo) {
+    public RfAuthJwtTokenCustomizer(OAuth2RegisteredClientRepository clientsRepo,
+                                    UserRepository userRepository) {
         this.clientsRepo = clientsRepo;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -123,12 +128,28 @@ public class RfAuthJwtTokenCustomizer implements OAuth2TokenCustomizer<JwtEncodi
 
             // Для Client Credentials Grant
             if (AuthorizationGrantType.CLIENT_CREDENTIALS.equals(context.getAuthorizationGrantType())) {
-                context.getClaims().claim("client_id", context.getRegisteredClient().getClientId());
+                String clientId = context.getRegisteredClient().getClientId();
+                context.getClaims().claim("client_id", clientId);
                 context.getClaims().claim("scope", context.getAuthorizedScopes());
-                context.getClaims().claim("user_type", "SERVICE");
 
-                log.debug("Customized JWT for client credentials grant: client_id={}, scopes={}",
-                        context.getRegisteredClient().getClientId(), context.getAuthorizedScopes());
+                UserEntity serviceUser = userRepository.findByUsernameWithRoles(clientId)
+                        .orElseThrow(() -> new IllegalArgumentException("User not found with username: " + clientId));
+                List<String> roles = Optional.of(serviceUser)
+                        .filter(u -> "SERVICE".equals(u.getUserType()))
+                        .map(u -> u.getRoles().stream()
+                                .map(role -> "ROLE_" + role.getName())
+                                .collect(Collectors.toList()))
+                        .orElse(Collections.emptyList());
+                context.getClaims().claim("roles", roles);
+                context.getClaims().claim("user_id", serviceUser.getId());
+                context.getClaims().claim("username", serviceUser.getUsername());
+                context.getClaims().claim("display_name", serviceUser.getDisplayName());
+                context.getClaims().claim("email", serviceUser.getEmail());
+                context.getClaims().claim("user_type", serviceUser.getUserType());
+
+                log.debug("Customized JWT for client credentials grant: client_id={}, scopes={}, roles={}",
+                        context.getRegisteredClient().getClientId(), context.getAuthorizedScopes(), new ArrayList<>(roles)
+                );
             }
 
             // Для других типов grant (если будут добавлены в будущем)

@@ -123,4 +123,22 @@ public class ClientRegistrationController {
                     .body(Map.of("error", "Internal server error: " + e.getMessage()));
         }
     }
+
+    /**
+     * Установить/снять флаг защиты клиента.
+     * Только ADMIN.
+     */
+    @PatchMapping("/{clientId}/protected")
+    public ResponseEntity<?> setProtected(
+            @PathVariable String clientId,
+            @RequestParam boolean value,
+            Authentication authentication) {
+        try {
+            clientRegistrationService.setProtectedFlag(clientId, value, authentication);
+            log.info("Client '{}' protected={} by {}", clientId, value, authentication.getName());
+            return ResponseEntity.ok(Map.of("clientId", clientId, "protected", value));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
 }

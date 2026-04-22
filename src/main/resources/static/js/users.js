@@ -1,5 +1,4 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // Эта функция отвечает и за инициализацию, и за ПЕРВУЮ загрузку данных.
     initializeTabs();
 
     const addRoleForm = document.getElementById('addRoleForm');
@@ -8,26 +7,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-/**
- * Инициализирует логику работы вкладок:
- * 1. Устанавливает слушателей событий для БУДУЩИХ переключений.
- * 2. Определяет, какая вкладка должна быть активной при загрузке.
- * 3. ЯВНО ЗАГРУЖАЕТ ДАННЫЕ для этой первоначальной активной вкладки.
- */
 function initializeTabs() {
     const tabs = document.querySelectorAll('#adminTabs .nav-link');
 
-    // 1. Устанавливаем слушателей для будущих кликов
     tabs.forEach(tab => {
         tab.addEventListener('shown.bs.tab', event => {
             const targetPanelId = event.target.getAttribute('data-bs-target');
             history.pushState(null, null, targetPanelId);
-            // Загружаем данные для вкладки, на которую ТОЛЬКО ЧТО переключились
             loadDataForTab(event.target);
         });
     });
 
-    // 2. Определяем, какая вкладка должна быть активна СЕЙЧАС
     const hash = window.location.hash;
     let tabToActivate = document.querySelector(`#adminTabs .nav-link[data-bs-target="${hash}"]`);
     if (!tabToActivate) {
@@ -35,21 +25,11 @@ function initializeTabs() {
     }
 
     if (tabToActivate) {
-        // Делаем вкладку визуально активной
         new bootstrap.Tab(tabToActivate).show();
-
-        // 3. *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ ***
-        // Явно вызываем загрузку данных для самой первой активной вкладки,
-        // так как событие 'shown.bs.tab' для нее не сработает.
         loadDataForTab(tabToActivate);
     }
 }
 
-/**
- * Вспомогательная функция, которая решает, какие данные загружать
- * в зависимости от того, какая вкладка активна.
- * @param {Element} tabElement - Элемент активной вкладки (кнопка).
- */
 function loadDataForTab(tabElement) {
     const targetPanelId = tabElement.getAttribute('data-bs-target');
     if (targetPanelId === '#users-panel') {
@@ -58,7 +38,6 @@ function loadDataForTab(tabElement) {
         fetchAndDisplayRoles();
     }
 }
-
 
 const getCsrfHeaders = () => {
     const token = document.querySelector('meta[name="_csrf"]').getAttribute('content');
@@ -73,22 +52,31 @@ const getCsrfHeaders = () => {
 
 async function fetchAndDisplayUsers() {
     const tableBody = document.getElementById('usersTableBody');
-    tableBody.innerHTML = `<tr><td colspan="8" class="text-center"><div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Загрузка...</span></div></td></tr>`;
+    tableBody.innerHTML = `<tr><td colspan="8" class="text-center">
+        <div class="spinner-border spinner-border-sm" role="status">
+            <span class="visually-hidden">Загрузка...</span>
+        </div></td></tr>`;
 
     try {
-        const response = await fetch('/auth/admin/api/users');
+        const response = await fetch('/auth/admin/api/users', { credentials: 'same-origin' });
         if (!response.ok) throw new Error('Failed to fetch users');
         const users = await response.json();
 
         if (users.length === 0) {
-            tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-muted">Пользователи не найдены.</td></tr>`;
+            tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-muted">
+                Пользователи не найдены.</td></tr>`;
             return;
         }
 
         tableBody.innerHTML = users.map(user => `
             <tr>
                 <td>${user.id}</td>
-                <td>${escapeHtml(user.username)}</td>
+                <td>
+                    ${escapeHtml(user.username)}
+                    ${user.protectedUser
+                        ? '<i class="fas fa-lock text-warning ms-1" title="Системный пользователь"></i>'
+                        : ''}
+                </td>
                 <td>${escapeHtml(user.displayName)}</td>
                 <td>
                     <span class="badge ${user.enabled ? 'bg-success' : 'bg-danger'}">
@@ -96,23 +84,28 @@ async function fetchAndDisplayUsers() {
                     </span>
                 </td>
                 <td><span class="badge bg-info">${escapeHtml(user.userType)}</span></td>
-                <td>${(user.roles || []).map(role => `<span class="badge bg-secondary me-1">${escapeHtml(role)}</span>`).join('')}</td>
-                <td>${user.lastLogon ? new Date(user.lastLogon).toLocaleString('ru-RU') : 'N/A'}</td>
+                <td>${(user.roles || []).map(role =>
+                    `<span class="badge bg-secondary me-1">${escapeHtml(role)}</span>`
+                ).join('')}</td>
+                <td>${user.lastLogon
+                    ? new Date(user.lastLogon).toLocaleString('ru-RU') : 'N/A'}</td>
                 <td>
-                    <button class="btn btn-sm btn-outline-primary" onclick="openEditUserModal(${user.id})">
+                    <button class="btn btn-sm btn-outline-primary"
+                            onclick="openEditUserModal(${user.id})">
                         <i class="fas fa-edit"></i>
                     </button>
-                    ${user.userType !== 'SERVICE' ? `
-                    <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteUser(${user.id}, '${escapeHtml(user.username)}')">
+                    ${!user.protectedUser && user.userType !== 'SERVICE' ? `
+                    <button class="btn btn-sm btn-outline-danger"
+                            onclick="confirmDeleteUser(${user.id}, '${escapeHtml(user.username)}')">
                         <i class="fas fa-trash"></i>
-                    </button>
-                    ` : ''}
+                    </button>` : ''}
                 </td>
             </tr>
         `).join('');
     } catch (error) {
         console.error('Error fetching users:', error);
-        tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-danger">Ошибка загрузки пользователей.</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-danger">
+            Ошибка загрузки пользователей.</td></tr>`;
         showToast('Ошибка загрузки пользователей', 'danger');
     }
 }
@@ -122,35 +115,55 @@ function openAddUserModal() {
     document.getElementById('userId').value = '';
     document.getElementById('username').disabled = false;
     document.getElementById('userModalTitle').textContent = 'Добавить нового пользователя';
-    document.getElementById('passwordHelp').textContent = 'Пароль обязателен для нового пользователя.';
+    document.getElementById('passwordHelp').textContent =
+        'Пароль обязателен для нового пользователя.';
+
+    // Снимаем блокировку полей (могла остаться от предыдущего защищённого пользователя)
+    document.getElementById('enabled').disabled        = false;
+    document.getElementById('accountNonLocked').disabled = false;
+
     const modal = new bootstrap.Modal(document.getElementById('userModal'));
     modal.show();
 }
 
 async function openEditUserModal(id) {
     try {
-        const response = await fetch(`/auth/admin/api/users/${id}`);
+        const response = await fetch(`/auth/admin/api/users/${id}`,
+            { credentials: 'same-origin' });
         if (!response.ok) throw new Error('Failed to fetch user data');
         const user = await response.json();
 
         document.getElementById('userForm').reset();
-        document.getElementById('userId').value = user.id;
-        document.getElementById('username').value = user.username;
-        document.getElementById('username').disabled = true;
-        document.getElementById('displayName').value = user.displayName;
-        document.getElementById('email').value = user.email;
-        document.getElementById('enabled').checked = user.enabled;
+        document.getElementById('userId').value           = user.id;
+        document.getElementById('username').value         = user.username;
+        document.getElementById('username').disabled      = true;
+        document.getElementById('displayName').value      = user.displayName;
+        document.getElementById('email').value            = user.email;
+        document.getElementById('enabled').checked        = user.enabled;
         document.getElementById('accountNonLocked').checked = user.accountNonLocked;
         document.getElementById('accountNonExpired').checked = user.accountNonExpired;
-        document.getElementById('expirationDate').value = user.expirationDate ? user.expirationDate.substring(0, 16) : '';
-        document.getElementById('password').value = '';
-        document.getElementById('passwordHelp').textContent = 'Оставьте пустым, чтобы не менять пароль.';
+        document.getElementById('expirationDate').value   =
+            user.expirationDate ? user.expirationDate.substring(0, 16) : '';
+        document.getElementById('password').value         = '';
+        document.getElementById('passwordHelp').textContent =
+            'Оставьте пустым, чтобы не менять пароль.';
 
         document.querySelectorAll('#rolesCheckboxes input[type="checkbox"]').forEach(cb => {
             cb.checked = user.roles.includes(cb.value);
         });
 
-        document.getElementById('userModalTitle').textContent = `Редактировать пользователя: ${user.username}`;
+        // Для защищённых пользователей блокируем enabled и accountNonLocked
+        const isProtected = user.protectedUser === true;
+        document.getElementById('enabled').disabled         = isProtected;
+        document.getElementById('accountNonLocked').disabled = isProtected;
+        if (isProtected) {
+            document.getElementById('userModalTitle').textContent =
+                `Редактировать: ${user.username} (системный)`;
+        } else {
+            document.getElementById('userModalTitle').textContent =
+                `Редактировать пользователя: ${user.username}`;
+        }
+
         const modal = new bootstrap.Modal(document.getElementById('userModal'));
         modal.show();
     } catch (error) {
@@ -161,38 +174,45 @@ async function openEditUserModal(id) {
 
 async function handleSaveUser() {
     const id = document.getElementById('userId').value;
-    const selectedRoles = Array.from(document.querySelectorAll('#rolesCheckboxes input:checked')).map(cb => cb.value);
+    const selectedRoles = Array.from(
+        document.querySelectorAll('#rolesCheckboxes input:checked')
+    ).map(cb => cb.value);
 
     const userData = {
-        username: document.getElementById('username').value,
-        displayName: document.getElementById('displayName').value,
-        email: document.getElementById('email').value,
-        password: document.getElementById('password').value,
-        enabled: document.getElementById('enabled').checked,
+        username:         document.getElementById('username').value,
+        displayName:      document.getElementById('displayName').value,
+        email:            document.getElementById('email').value,
+        password:         document.getElementById('password').value,
+        enabled:          document.getElementById('enabled').checked,
         accountNonLocked: document.getElementById('accountNonLocked').checked,
         accountNonExpired: document.getElementById('accountNonExpired').checked,
-        expirationDate: document.getElementById('expirationDate').value ? document.getElementById('expirationDate').value + ':00' : null,
+        expirationDate:   document.getElementById('expirationDate').value
+                            ? document.getElementById('expirationDate').value + ':00'
+                            : null,
         roles: selectedRoles
     };
 
-    if (!userData.password) {
-        delete userData.password;
-    }
+    if (!userData.password) delete userData.password;
 
-    const url = id ? `/auth/admin/api/users/${id}` : '/auth/admin/api/users';
+    const url    = id ? `/auth/admin/api/users/${id}` : '/auth/admin/api/users';
     const method = id ? 'PUT' : 'POST';
 
     try {
         const response = await fetch(url, {
-            method: method,
+            method,
             headers: getCsrfHeaders(),
+            credentials: 'same-origin',
             body: JSON.stringify(userData)
         });
 
         if (response.ok) {
             showToast(`Пользователь успешно ${id ? 'обновлен' : 'создан'}`, 'success');
-            bootstrap.Modal.getInstance(document.getElementById('userModal')).hide();
-            fetchAndDisplayUsers();
+            const modalEl = document.getElementById('userModal');
+            const modalInstance = bootstrap.Modal.getInstance(modalEl);
+            modalEl.addEventListener('hidden.bs.modal', () => {
+                fetchAndDisplayUsers();
+            }, { once: true });
+            modalInstance.hide();
         } else {
             const error = await response.json();
             showToast(error.error || 'Ошибка сохранения', 'danger');
@@ -207,28 +227,35 @@ let userToDeleteId = null;
 function confirmDeleteUser(id, username) {
     userToDeleteId = id;
     document.getElementById('deleteUsername').textContent = username;
-    const modal = new bootstrap.Modal(document.getElementById('deleteUserConfirmModal'));
+    const modal = new bootstrap.Modal(
+        document.getElementById('deleteUserConfirmModal'));
     modal.show();
 
-    const confirmBtn = document.getElementById('confirmDeleteUserBtn');
-    confirmBtn.onclick = async () => {
+    document.getElementById('confirmDeleteUserBtn').onclick = async () => {
         try {
             const response = await fetch(`/auth/admin/api/users/${userToDeleteId}`, {
                 method: 'DELETE',
-                headers: getCsrfHeaders()
+                headers: getCsrfHeaders(),
+                credentials: 'same-origin'
             });
             if (response.ok) {
                 showToast('Пользователь удален', 'success');
-                fetchAndDisplayUsers();
+                const delModalEl = document.getElementById('deleteUserConfirmModal');
+                delModalEl.addEventListener('hidden.bs.modal', () => {
+                    fetchAndDisplayUsers();
+                }, { once: true });
+                bootstrap.Modal.getInstance(delModalEl).hide();
             } else {
                 const error = await response.json();
                 showToast(error.error || 'Ошибка удаления', 'danger');
+                bootstrap.Modal.getInstance(
+                    document.getElementById('deleteUserConfirmModal')).hide();
             }
         } catch (error) {
             console.error('Error deleting user:', error);
             showToast('Сетевая ошибка при удалении', 'danger');
-        } finally {
-            bootstrap.Modal.getInstance(document.getElementById('deleteUserConfirmModal')).hide();
+            bootstrap.Modal.getInstance(
+                document.getElementById('deleteUserConfirmModal')).hide();
         }
     };
 }
@@ -237,15 +264,20 @@ function confirmDeleteUser(id, username) {
 
 async function fetchAndDisplayRoles() {
     const tableBody = document.getElementById('rolesTableBody');
-    tableBody.innerHTML = `<tr><td colspan="4" class="text-center"><div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Загрузка...</span></div></td></tr>`;
+    tableBody.innerHTML = `<tr><td colspan="5" class="text-center">
+        <div class="spinner-border spinner-border-sm" role="status">
+            <span class="visually-hidden">Загрузка...</span>
+        </div></td></tr>`;
 
     try {
-        const response = await fetch('/auth/admin/api/roles');
+        const response = await fetch('/auth/admin/api/roles',
+            { credentials: 'same-origin' });
         if (!response.ok) throw new Error('Failed to fetch roles');
         const roles = await response.json();
 
         if (roles.length === 0) {
-            tableBody.innerHTML = `<tr><td colspan="4" class="text-center text-muted">Роли не найдены.</td></tr>`;
+            tableBody.innerHTML = `<tr><td colspan="4" class="text-center text-muted">
+                Роли не найдены.</td></tr>`;
             return;
         }
 
@@ -255,15 +287,23 @@ async function fetchAndDisplayRoles() {
                 <td>${escapeHtml(role.name)}</td>
                 <td>${escapeHtml(role.description || '')}</td>
                 <td>
-                    <button class="btn btn-sm btn-outline-danger" onclick="handleDeleteRole(${role.id})">
+                    ${role.createdBy === 'system'
+                        ? '<span class="badge bg-secondary"><i class="fas fa-lock me-1"></i>Системная</span>'
+                        : `<small class="text-muted">${escapeHtml(role.createdBy || '')}</small>`}
+                </td>
+                <td>
+                    ${role.createdBy !== 'system' ? `
+                    <button class="btn btn-sm btn-outline-danger"
+                            onclick="handleDeleteRole(${role.id})">
                         <i class="fas fa-trash"></i>
-                    </button>
+                    </button>` : ''}
                 </td>
             </tr>
         `).join('');
     } catch (error) {
         console.error('Error fetching roles:', error);
-        tableBody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">Ошибка загрузки ролей.</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">
+            Ошибка загрузки ролей.</td></tr>`;
         showToast('Ошибка загрузки ролей', 'danger');
     }
 }
@@ -271,7 +311,7 @@ async function fetchAndDisplayRoles() {
 async function handleAddRole(event) {
     event.preventDefault();
     const roleData = {
-        name: document.getElementById('roleName').value.toUpperCase(),
+        name:        document.getElementById('roleName').value.toUpperCase(),
         description: document.getElementById('roleDescription').value
     };
 
@@ -279,6 +319,7 @@ async function handleAddRole(event) {
         const response = await fetch('/auth/admin/api/roles', {
             method: 'POST',
             headers: getCsrfHeaders(),
+            credentials: 'same-origin',
             body: JSON.stringify(roleData)
         });
 
@@ -302,7 +343,8 @@ async function handleDeleteRole(id) {
     try {
         const response = await fetch(`/auth/admin/api/roles/${id}`, {
             method: 'DELETE',
-            headers: getCsrfHeaders()
+            headers: getCsrfHeaders(),
+            credentials: 'same-origin'
         });
         if (response.ok) {
             showToast('Роль удалена', 'success');
@@ -318,13 +360,12 @@ async function handleDeleteRole(id) {
     }
 }
 
-// Helper
 function escapeHtml(unsafe) {
     if (unsafe === null || typeof unsafe === 'undefined') return '';
     return unsafe.toString()
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
 }

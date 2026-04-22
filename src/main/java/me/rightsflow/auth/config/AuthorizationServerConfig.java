@@ -5,6 +5,7 @@ import com.nimbusds.jose.proc.SecurityContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.rightsflow.auth.repository.OAuth2RegisteredClientRepository;
+import me.rightsflow.auth.repository.UserRepository;
 import me.rightsflow.auth.service.JpaRegisteredClientRepository;
 import me.rightsflow.auth.service.JwkService;
 import me.rightsflow.auth.service.RfAuthUserDetailsService;
@@ -34,6 +35,7 @@ import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.security.web.access.expression.WebExpressionAuthorizationManager;
 
 import java.util.Arrays;
 import java.util.List;
@@ -145,8 +147,26 @@ public class AuthorizationServerConfig {
                                 "/login",
                                 "/logout",
                                 "/").permitAll()
+                        // Эндпоинт загрузки кэша — доступен любому аутентифицированному клиенту
+                        // (микросервисы используют client_credentials)
+                        .requestMatchers("/api/permissions/by-roles").authenticated()
+                        .requestMatchers("/api/permissions/**").access(
+                                new WebExpressionAuthorizationManager("hasRole('ADMIN') or hasRole('PERMISSION_MANAGER')")
+                        )
                         .requestMatchers("/api/**",
                                 "/userinfo").authenticated()
+                        .requestMatchers("/admin/permissions", "/admin/permissions/**").access(
+                                new WebExpressionAuthorizationManager("hasRole('ADMIN') or hasRole('PERMISSION_MANAGER')")
+                        )
+                        .requestMatchers("/admin/api/roles", "/admin/api/roles/**").access(
+                                new WebExpressionAuthorizationManager("hasRole('ADMIN') or hasRole('PERMISSION_MANAGER')")
+                        )
+                        .requestMatchers("/admin/api/users/summary").access(
+                                new WebExpressionAuthorizationManager("hasRole('ADMIN') or hasRole('PERMISSION_MANAGER')")
+                        )
+                        .requestMatchers("/admin/api/users/*/roles/*").access(
+                                new WebExpressionAuthorizationManager("hasRole('ADMIN') or hasRole('PERMISSION_MANAGER')")
+                        )
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
@@ -168,10 +188,12 @@ public class AuthorizationServerConfig {
                         .permitAll()
                 )
                 .exceptionHandling(exceptions -> exceptions
-                        .accessDeniedPage("/error?type=access-denied")
-                        .authenticationEntryPoint((request, response, authException) -> {
-                            response.sendRedirect("/error?type=unauthorized");
-                        })
+                         .accessDeniedHandler((request, response, accessDeniedException) -> {
+                             response.sendRedirect("/auth/error?type=access-denied");
+                         })
+                         .authenticationEntryPoint((request, response, authException) -> {
+                             response.sendRedirect("/auth/login");
+                         })
                 )
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
@@ -278,8 +300,9 @@ public class AuthorizationServerConfig {
      * @return OAuth2TokenCustomizer для настройки JWT.
      */
     @Bean
-    public OAuth2TokenCustomizer<JwtEncodingContext> jwtCustomizer(OAuth2RegisteredClientRepository repo) {
-        return new RfAuthJwtTokenCustomizer(repo);
+    public OAuth2TokenCustomizer<JwtEncodingContext> jwtCustomizer(OAuth2RegisteredClientRepository repo,
+                                                                   UserRepository userRepository) {
+        return new RfAuthJwtTokenCustomizer(repo, userRepository);
     }
 
     /**

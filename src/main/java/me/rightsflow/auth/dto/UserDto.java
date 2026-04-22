@@ -18,5 +18,10 @@ public class UserDto {
     private LocalDateTime lastLogon;
     private String userType;
     private Set<String> roles;
+    /**
+     * true — пользователь является системным, его нельзя удалить или отключить.
+     * Заполняется в UserService на основе PROTECTED_USERNAMES.
+     */
+    private Boolean protectedUser = false;
 }
 

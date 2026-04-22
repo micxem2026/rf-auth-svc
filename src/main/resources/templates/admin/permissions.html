@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="ru"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout}">
+<head>
+    <title>Управление правами ролей</title>
+    <meta name="_csrf"        th:content="${_csrf.token}"/>
+    <meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+</head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            <i class="fas fa-shield-alt me-2"></i>
+            Управление правами ролей
+        </h2>
+        <div sec:authorize="hasRole('ADMIN')">
+            <button class="btn btn-primary" onclick="openAddPermissionModal()">
+                <i class="fas fa-plus me-2"></i>
+                Добавить право
+            </button>
+        </div>
+    </div>
+
+    <!-- Вкладки -->
+    <ul class="nav nav-tabs mb-0" id="permissionsTabs" role="tablist">
+        <li class="nav-item" sec:authorize="hasRole('ADMIN')">
+            <button class="nav-link active" id="permissions-tab-btn"
+                    data-bs-toggle="tab"
+                    data-bs-target="#permissions-panel" type="button">
+                <i class="fas fa-list me-2"></i>Все права
+            </button>
+        </li>
+        <li class="nav-item">
+            <button th:class="${#authorization.expression('hasRole(''ADMIN'')')}
+                                ? 'nav-link'
+                                : 'nav-link active'"
+                    id="roles-tab-btn"
+                    data-bs-toggle="tab"
+                    data-bs-target="#roles-panel" type="button">
+                <i class="fas fa-user-tag me-2"></i>Права по ролям
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" id="assign-tab-btn"
+                    data-bs-toggle="tab"
+                    data-bs-target="#assign-panel" type="button">
+                <i class="fas fa-user-plus me-2"></i>Назначение ролей
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="permissionsTabsContent">
+
+        <!-- ================================================ -->
+        <!-- Вкладка: Все права                               -->
+        <!-- ================================================ -->
+        <div th:class="${#authorization.expression('hasRole(''ADMIN'')')}
+                          ? 'tab-pane fade show active'
+                          : 'tab-pane fade'"
+             id="permissions-panel">
+            <div class="card border-top-0 rounded-top-0">
+                <div class="card-body">
+
+                    <!-- Фильтр по сервису -->
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label for="serviceFilter" class="form-label">
+                                Фильтр по сервису:
+                            </label>
+                            <select class="form-select" id="serviceFilter"
+                                    onchange="filterByService()">
+                                <option value="">Все сервисы</option>
+                                <option th:each="svc : ${services}"
+                                        th:value="${svc}"
+                                        th:text="${svc}">
+                                </option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="searchInput" class="form-label">Поиск:</label>
+                            <input type="text" class="form-control" id="searchInput"
+                                   placeholder="Ресурс или действие..."
+                                   oninput="filterTable()">
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="permissionsTable">
+                            <thead class="table-light">
+                            <tr>
+                                <th>ID</th>
+                                <th>Сервис</th>
+                                <th>Ресурс (контроллер)</th>
+                                <th>Действие (метод)</th>
+                                <th>Описание</th>
+                                <th>Роли</th>
+                                <th>Действия</th>
+                            </tr>
+                            </thead>
+                            <tbody id="permissionsTableBody">
+                            <tr>
+                                <td colspan="7" class="text-center">
+                                    <div class="spinner-border spinner-border-sm" role="status">
+                                        <span class="visually-hidden">Загрузка...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================================================ -->
+        <!-- Вкладка: Права по ролям                          -->
+        <!-- ================================================ -->
+        <div th:class="${#authorization.expression('hasRole(''ADMIN'')')}
+                          ? 'tab-pane fade'
+                          : 'tab-pane fade show active'"
+             id="roles-panel">
+            <div class="card border-top-0 rounded-top-0">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <p class="text-muted mb-0">
+                            Выберите роль чтобы просмотреть и изменить её права.
+                        </p>
+                        <button class="btn btn-primary btn-sm"
+                                onclick="openCreateRoleModal()">
+                            <i class="fas fa-plus me-2"></i>Создать роль
+                        </button>
+                    </div>
+                    <div class="row g-3" id="rolesGrid">
+                        <div class="col-md-4 col-lg-3"
+                             th:each="role : ${roles}"
+                             th:if="${#authorization.expression('hasRole(''ADMIN'')') or role.createdBy == currentUsername}">
+                            <a th:href="@{/admin/permissions/roles/{id}(id=${role.id})}"
+                               class="card text-decoration-none h-100
+                                      border card-role-link">
+                                <div class="card-body d-flex align-items-center gap-3">
+                                    <i class="fas fa-user-shield fa-2x text-primary"></i>
+                                    <div>
+                                        <div class="fw-semibold" th:text="${role.name}">ROLE</div>
+                                        <small class="text-muted"
+                                               th:text="${role.description ?: 'Нет описания'}">
+                                        </small>
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
+                        <!-- Сообщение когда у PERMISSION_MANAGER нет созданных ролей -->
+                        <div class="col-12"
+                             th:if="${not isAdmin and not hasOwnRoles}">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                У вас пока нет созданных ролей. Нажмите «Создать роль» чтобы начать.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================================================ -->
+        <!-- Вкладка: Назначение ролей пользователям          -->
+        <!-- ================================================ -->
+        <div class="tab-pane fade" id="assign-panel">
+            <div class="card border-top-0 rounded-top-0">
+                <div class="card-body">
+                    <p class="text-muted mb-3">
+                        Назначайте и снимайте свои роли пользователям системы.
+                    </p>
+
+                    <!-- Мои роли -->
+                    <div class="mb-3" id="myRolesBlock">
+                        <label class="form-label fw-semibold">Мои роли:</label>
+                        <div id="myRolesBadges" class="d-flex flex-wrap gap-2">
+                            <span class="text-muted">Загрузка...</span>
+                        </div>
+                    </div>
+
+                    <!-- Таблица пользователей -->
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="assignUsersTable">
+                            <thead class="table-light">
+                            <tr>
+                                <th>Пользователь</th>
+                                <th>Display Name</th>
+                                <th>Тип</th>
+                                <th>Текущие роли</th>
+                                <th>Управление</th>
+                            </tr>
+                            </thead>
+                            <tbody id="assignUsersTableBody">
+                            <tr>
+                                <td colspan="5" class="text-center">
+                                    <div class="spinner-border spinner-border-sm" role="status"></div>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- /tab-content -->
+
+
+    <!-- ================================================ -->
+    <!-- Модальное окно: Добавление права                 -->
+    <!-- ================================================ -->
+    <div class="modal fade" id="addPermissionModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-plus me-2"></i>Добавить право
+                    </h5>
+                    <button type="button" class="btn-close"
+                            data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addPermissionForm">
+                        <div class="mb-3">
+                            <label for="newService" class="form-label">
+                                Сервис <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control" id="newService"
+                                   placeholder="rf-contract-svc" required
+                                   pattern="^[a-zA-Z0-9_-]+$">
+                            <div class="form-text">
+                                Значение spring.application.name микросервиса
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="newResource" class="form-label">
+                                Ресурс (контроллер) <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control" id="newResource"
+                                   placeholder="ContractController" required
+                                   pattern="^[a-zA-Z0-9_]+$">
+                        </div>
+                        <div class="mb-3">
+                            <label for="newAction" class="form-label">
+                                Действие (метод) <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control" id="newAction"
+                                   placeholder="createContract" required
+                                   pattern="^[a-zA-Z0-9_]+$">
+                        </div>
+                        <div class="mb-3">
+                            <label for="newDescription" class="form-label">
+                                Описание
+                            </label>
+                            <textarea class="form-control" id="newDescription"
+                                      rows="2"
+                                      placeholder="Создание нового контракта"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary"
+                            data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-primary"
+                            onclick="handleAddPermission()">
+                        <i class="fas fa-save me-2"></i>Сохранить
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================ -->
+    <!-- Модальное окно: Подтверждение удаления права     -->
+    <!-- ================================================ -->
+    <div class="modal fade" id="deletePermissionModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                        Подтверждение удаления
+                    </h5>
+                    <button type="button" class="btn-close"
+                            data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Удалить право
+                        <strong id="deletePermissionName"></strong>?
+                    </p>
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        Право будет автоматически снято со всех ролей.
+                        Кэш микросервисов будет инвалидирован.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary"
+                            data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-danger"
+                            id="confirmDeletePermissionBtn">
+                        <i class="fas fa-trash me-2"></i>Удалить
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================ -->
+    <!-- Модальное окно: Создание роли                    -->
+    <!-- ================================================ -->
+    <div class="modal fade" id="createRoleModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-user-shield me-2"></i>Создать роль
+                    </h5>
+                    <button type="button" class="btn-close"
+                            data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createRoleForm">
+                        <div class="mb-3">
+                            <label for="newRoleName" class="form-label">
+                                Название роли <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control" id="newRoleName"
+                                   placeholder="ANALYST" required
+                                   pattern="^[A-Z0-9_]+$"
+                                   style="text-transform: uppercase">
+                            <div class="form-text">
+                                Только заглавные буквы, цифры и подчёркивание
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="newRoleDescription" class="form-label">
+                                Описание
+                            </label>
+                            <textarea class="form-control" id="newRoleDescription"
+                                      rows="2"
+                                      placeholder="Аналитик данных"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary"
+                            data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-primary"
+                            onclick="handleCreateRole()">
+                        <i class="fas fa-save me-2"></i>Создать
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div><!-- /content -->
+
+<th:block layout:fragment="scripts">
+    <script th:inline="javascript">
+        /*<![CDATA[*/
+        const initialServices  = /*[[${services}]]*/ [];
+        const IS_ADMIN         = /*[[${isAdmin}]]*/ false;
+        const CURRENT_USERNAME = /*[[${currentUsername}]]*/ '';
+        /*]]>*/
+    </script>
+    <script th:src="@{/js/permissions.js}"></script>
+</th:block>
+
+</body>
+</html>

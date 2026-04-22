@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ru"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout}">
+<head>
+    <title th:text="'Права роли: ' + ${role.name}">Права роли</title>
+    <meta name="_csrf"        th:content="${_csrf.token}"/>
+    <meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+</head>
+<body>
+<div layout:fragment="content">
+
+    <!-- Заголовок + навигация -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item">
+                        <a href="/auth/admin/permissions">Права ролей</a>
+                    </li>
+                    <li class="breadcrumb-item active"
+                        th:text="${role.name}">ROLE</li>
+                </ol>
+            </nav>
+            <h2 class="mb-0">
+                <i class="fas fa-user-shield me-2 text-primary"></i>
+                Роль: <span th:text="${role.name}">ROLE_NAME</span>
+            </h2>
+            <small class="text-muted"
+                   th:text="${role.description ?: 'Описание не задано'}">
+            </small>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary"
+                    onclick="history.back()">
+                <i class="fas fa-arrow-left me-2"></i>Назад
+            </button>
+            <button class="btn btn-success" id="saveBtn"
+                    onclick="savePermissions()" disabled>
+                <i class="fas fa-save me-2"></i>Сохранить изменения
+            </button>
+        </div>
+    </div>
+
+    <!-- Заблокировано для защищённых ролей -->
+    <div class="alert alert-danger d-none" id="protectedAlert">
+        <i class="fas fa-lock me-2"></i>
+        Права этой роли защищены от изменения. Роль <strong th:text="${role.name}"></strong> является системной.
+    </div>
+
+    <!-- Индикатор несохранённых изменений -->
+    <div class="alert alert-warning d-none" id="unsavedAlert">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        Есть несохранённые изменения. Нажмите «Сохранить изменения».
+    </div>
+
+    <!-- Панель фильтрации -->
+    <div class="card mb-3">
+        <div class="card-body py-2">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-4">
+                    <label for="svcFilter" class="form-label small mb-1">
+                        Сервис:
+                    </label>
+                    <select class="form-select form-select-sm" id="svcFilter"
+                            onchange="applyFilters()">
+                        <option value="">Все сервисы</option>
+                        <option th:each="svc : ${services}"
+                                th:value="${svc}"
+                                th:text="${svc}">
+                        </option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="rpSearch" class="form-label small mb-1">
+                        Поиск:
+                    </label>
+                    <input type="text" class="form-control form-select-sm"
+                           id="rpSearch"
+                           placeholder="Ресурс или действие..."
+                           oninput="applyFilters()">
+                </div>
+                <div class="col-md-4">
+                    <div class="form-check form-switch mt-3">
+                        <input class="form-check-input" type="checkbox"
+                               id="showAssignedOnly"
+                               onchange="applyFilters()">
+                        <label class="form-check-label" for="showAssignedOnly">
+                            Только назначенные
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Счётчики -->
+    <div class="d-flex gap-3 mb-3 align-items-center">
+        <span class="badge bg-success fs-6" id="assignedCount">0 назначено</span>
+        <span class="badge bg-secondary fs-6" id="totalCount">0 всего</span>
+        <button class="btn btn-sm btn-outline-success ms-auto"
+                onclick="selectAll()">
+            <i class="fas fa-check-double me-1"></i>Выбрать все
+        </button>
+        <button class="btn btn-sm btn-outline-secondary"
+                onclick="deselectAll()">
+            <i class="fas fa-times me-1"></i>Снять все
+        </button>
+    </div>
+
+    <!-- Таблица прав сгруппированная по сервисам -->
+    <div id="permissionsContainer">
+        <div class="text-center py-4">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Загрузка...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Плавающая кнопка сохранения (видна при скролле) -->
+    <div class="position-fixed bottom-0 end-0 p-4 d-none" id="floatingSaveBtn">
+        <button class="btn btn-success btn-lg shadow"
+                onclick="savePermissions()">
+            <i class="fas fa-save me-2"></i>Сохранить изменения
+        </button>
+    </div>
+
+</div><!-- /content -->
+
+<th:block layout:fragment="scripts">
+    <script th:inline="javascript">
+        /*<![CDATA[*/
+        const ROLE_ID   = /*[[${role.id}]]*/ 0;
+        const ROLE_NAME      = /*[[${role.name}]]*/ '';
+        const ROLE_PROTECTED = /*[[${isProtected}]]*/ false;
+        /*]]>*/
+    </script>
+    <script th:src="@{/js/role-permissions.js}"></script>
+</th:block>
+
+</body>
+</html>

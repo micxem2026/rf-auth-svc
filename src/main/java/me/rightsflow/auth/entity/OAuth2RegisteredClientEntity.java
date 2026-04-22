@@ -58,17 +58,20 @@ public class OAuth2RegisteredClientEntity {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    /**
+     * Флаг защиты от удаления и изменения через веб-интерфейс.
+     * Устанавливается вручную администратором для служебных клиентов
+     * (например, system, swagger).
+     */
+    @Column(name = "protected", nullable = false)
+    private Boolean protectedClient = false;
+
     @PrePersist
     protected void onCreate() {
-        if (createdAt == null) {
-            createdAt = LocalDateTime.now();
-        }
-        if (updatedAt == null) {
-            updatedAt = LocalDateTime.now();
-        }
-        if (clientIdIssuedAt == null) {
-            clientIdIssuedAt = LocalDateTime.now();
-        }
+        if (createdAt == null)     createdAt     = LocalDateTime.now();
+        if (updatedAt == null)     updatedAt     = LocalDateTime.now();
+        if (clientIdIssuedAt == null) clientIdIssuedAt = LocalDateTime.now();
+        if (protectedClient == null)  protectedClient  = false;
     }
 
     @PreUpdate
@@ -76,4 +79,3 @@ public class OAuth2RegisteredClientEntity {
         updatedAt = LocalDateTime.now();
     }
 }
-

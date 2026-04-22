@@ -1,7 +1,7 @@
-package me.rightsflow.auth.tests;
+package me.rightsflow.auth.controller;
 
 import me.rightsflow.auth.config.TestSecurityConfig;
-import me.rightsflow.auth.controller.AuthController;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -18,6 +18,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(controllers = {AuthController.class})
 @Import(TestSecurityConfig.class)
 @ActiveProfiles("test")
+@DisplayName("LogoutController")
 public class LogoutControllerTest {
 
     @Autowired
@@ -28,7 +29,7 @@ public class LogoutControllerTest {
     public void testLogoutGet() throws Exception {
         mockMvc.perform(get("/logout"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/login?logout=true"));
+                .andExpect(redirectedUrl("/auth/login?logout=true"));
     }
 
     @Test
@@ -36,7 +37,7 @@ public class LogoutControllerTest {
     public void testLogoutPost() throws Exception {
         mockMvc.perform(post("/logout").with(csrf()))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/login?logout=true"));
+                .andExpect(redirectedUrl("/auth/login?logout=true"));
     }
 
     @Test
@@ -47,12 +48,6 @@ public class LogoutControllerTest {
                 .andExpect(redirectedUrl("/custom-page"));
     }
 
-    @Test
-    public void testLogoutWithoutAuthentication() throws Exception {
-        mockMvc.perform(get("/logout"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/login?logout=true"));
-    }
 }
 
 

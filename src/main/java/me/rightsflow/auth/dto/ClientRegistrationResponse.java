@@ -21,5 +21,10 @@ public class ClientRegistrationResponse {
     private Boolean reuseRefreshTokens;
     private String createdBy;
     private LocalDateTime createdAt;
-}
 
+    /**
+     * Флаг защиты от удаления и изменения через веб-интерфейс.
+     * true — кнопки "Изменить" и "Удалить" скрываются в UI.
+     */
+    private Boolean protectedClient = false;
+}

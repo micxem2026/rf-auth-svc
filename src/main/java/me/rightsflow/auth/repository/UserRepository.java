@@ -28,7 +28,7 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
      * @param username Username of the user.
      * @return An optional containing the user and its roles if found, empty otherwise.
      */
-    @Query("SELECT u FROM UserEntity u JOIN FETCH u.roles WHERE u.username = :username")
+    @Query("SELECT u FROM UserEntity u LEFT JOIN FETCH u.roles WHERE u.username = :username")
     Optional<UserEntity> findByUsernameWithRoles(String username);
 
     /**
