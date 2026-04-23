@@ -16,6 +16,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -26,6 +27,7 @@ import org.springframework.security.oauth2.server.authorization.config.annotatio
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
@@ -39,6 +41,7 @@ import org.springframework.security.web.access.expression.WebExpressionAuthoriza
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Configuration
@@ -149,7 +152,10 @@ public class AuthorizationServerConfig {
                                 "/").permitAll()
                         // Эндпоинт загрузки кэша — доступен любому аутентифицированному клиенту
                         // (микросервисы используют client_credentials)
-                        .requestMatchers("/api/permissions/by-roles").authenticated()
+                        .requestMatchers("/api/permissions/by-roles",
+                                "/api/permissions/register-batch").access(
+                                new WebExpressionAuthorizationManager("hasRole('ADMIN') or hasRole('SERVICE')")
+                        )
                         .requestMatchers("/api/permissions/**").access(
                                 new WebExpressionAuthorizationManager("hasRole('ADMIN') or hasRole('PERMISSION_MANAGER')")
                         )
@@ -291,6 +297,36 @@ public class AuthorizationServerConfig {
         return AuthorizationServerSettings.builder()
                 .issuer("http://%s:%d/auth".formatted(issuerHost, issuerPort))
                 .build();
+    }
+
+    /**
+     * Создаёт и настраивает {@link JwtAuthenticationConverter} для преобразования JWT-токенов
+     * в объекты аутентификации Spring Security.
+     * <p>
+     * Конвертер извлекает список ролей из клейма {@code "roles"} JWT-токена и преобразует их
+     * в {@link SimpleGrantedAuthority}. Если роль не начинается с префикса {@code "ROLE_"},
+     * префикс добавляется автоматически. Пустые или null-роли фильтруются.
+     * <p>
+     * В качестве основного идентификатора пользователя используется клейм {@code "sub"}.
+     *
+     * @return настроенный {@code JwtAuthenticationConverter} для обработки JWT-токенов
+     */
+    @Bean
+    public JwtAuthenticationConverter jwtAuthenticationConverter() {
+        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+        converter.setJwtGrantedAuthoritiesConverter(jwt -> {
+            List<String> roles = jwt.getClaimAsStringList("roles");
+            if (roles == null || roles.isEmpty()) {
+                return List.of();
+            }
+            return roles.stream()
+                    .filter(r -> r != null && !r.isBlank())
+                    .map(r -> r.startsWith("ROLE_") ? r : "ROLE_" + r)
+                    .map(SimpleGrantedAuthority::new)
+                    .collect(Collectors.toList());
+        });
+        converter.setPrincipalClaimName("sub");
+        return converter;
     }
 
     /**

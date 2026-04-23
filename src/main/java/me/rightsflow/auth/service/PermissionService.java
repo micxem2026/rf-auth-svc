@@ -2,9 +2,7 @@ package me.rightsflow.auth.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import me.rightsflow.auth.dto.PermissionDto;
-import me.rightsflow.auth.dto.PermissionsByRolesResponse;
-import me.rightsflow.auth.dto.RolePermissionDto;
+import me.rightsflow.auth.dto.*;
 import me.rightsflow.auth.entity.PermissionEntity;
 import me.rightsflow.auth.entity.RoleEntity;
 import me.rightsflow.auth.entity.RolePermissionEntity;
@@ -35,7 +33,7 @@ public class PermissionService {
      * Роли, права которых защищены от изменения через UI.
      * ADMIN — системная роль, её нельзя ослабить.
      */
-    private static final Set<String> PROTECTED_ROLES = Set.of("ADMIN");
+    private static final Set<String> PROTECTED_ROLES = Set.of("ADMIN","SERVICE","PERMISSION_MANAGER");
 
     /** Сервис авторизации — PERMISSION_MANAGER не может назначать его права ролям */
     private static final String AUTH_SERVICE = "rf-auth-svc";
@@ -346,6 +344,83 @@ public class PermissionService {
                 result.values().stream().mapToInt(List::size).sum());
 
         return PermissionsByRolesResponse.of(service, result);
+    }
+
+    /**
+     * Batch upsert прав для микросервиса.
+     *
+     * <p>Для каждого права из запроса:
+     * <ul>
+     *   <li>Если право с таким (service, resource, action) уже существует — пропускаем.</li>
+     *   <li>Если не существует — создаём.</li>
+     * </ul>
+     *
+     * <p>Операция идемпотентна: повторный вызов не создаёт дублей.</p>
+     *
+     * @param request batch-запрос от микросервиса
+     * @return статистика: сколько создано / сколько уже было
+     */
+    @Transactional
+    public PermissionRegistrationResponse upsertPermissions(
+            PermissionRegistrationRequest request) {
+
+        String service = request.getService();
+        int created = 0;
+        int updated = 0;
+        int skipped = 0;
+
+        for (PermissionRegistrationRequest.PermissionEntry entry : request.getPermissions()) {
+
+            Optional<PermissionEntity> existing = permissionRepository
+                    .findByServiceAndResourceAndAction(
+                            service, entry.getResource(), entry.getAction());
+
+            if (existing.isEmpty()) {
+                // Право не существует — создаём
+                PermissionEntity entity = new PermissionEntity();
+                entity.setService(service);
+                entity.setResource(entry.getResource());
+                entity.setAction(entry.getAction());
+                entity.setDescription(entry.getDescription());
+                permissionRepository.save(entity);
+
+                log.info("Auto-registered new permission: {}:{}:{}",
+                        service, entry.getResource(), entry.getAction());
+                created++;
+
+            } else {
+                PermissionEntity entity = existing.get();
+                String newDescription = entry.getDescription();
+                String oldDescription = entity.getDescription();
+
+                // Сравниваем description: обновляем только если изменилось
+                boolean descriptionChanged = !Objects.equals(oldDescription, newDescription);
+
+                if (descriptionChanged) {
+                    log.info("Updating description for permission {}:{}:{}: '{}' → '{}'",
+                            service, entry.getResource(), entry.getAction(),
+                            oldDescription, newDescription);
+                    entity.setDescription(newDescription);
+                    permissionRepository.save(entity);
+                    updated++;
+                } else {
+                    log.debug("Permission {}:{}:{} already exists, description unchanged. Skipping.",
+                            service, entry.getResource(), entry.getAction());
+                    skipped++;
+                }
+            }
+        }
+
+        log.info("Batch upsert complete for service '{}': created={}, updated={}, skipped={}",
+                service, created, updated, skipped);
+
+        return PermissionRegistrationResponse.builder()
+                .service(service)
+                .total(request.getPermissions().size())
+                .created(created)
+                .updated(updated)
+                .skipped(skipped)
+                .build();
     }
 
     // ================================================================

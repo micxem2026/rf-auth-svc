@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS permissions (
         UNIQUE (service, resource, action)
 );
 
-COMMENT ON TABLE  permissions         IS 'Справочник прав доступа к методам микросервисов';
+COMMENT ON TABLE  permissions          IS 'Справочник прав доступа к методам микросервисов';
 COMMENT ON COLUMN permissions.service  IS 'Имя микросервиса (spring.application.name)';
 COMMENT ON COLUMN permissions.resource IS 'Имя контроллера (например ContractController)';
 COMMENT ON COLUMN permissions.action   IS 'Имя метода контроллера (например createContract)';
@@ -58,12 +58,24 @@ COMMENT ON COLUMN role_permissions.granted_by IS 'Username администра�
 CREATE INDEX IF NOT EXISTS idx_role_permissions_permission_id
     ON role_permissions (permission_id);
 
+INSERT INTO roles (name, description, created_by)
+VALUES ('SERVICE', 'Системная роль для межсервисного взаимодействия', 'system')
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO user_roles (user_id, role_id)
+SELECT u.id, r.id
+FROM users u, roles r
+WHERE u.username = 'system'
+  AND r.name = 'SERVICE'
+ON CONFLICT DO NOTHING;
+
 -- ============================================================
 -- Начальные данные: права для системных ролей ADMIN и USER
 -- Права описывают веб-интерфейс rf-auth-svc
 -- ============================================================
 
 -- Права для управления пользователями (AdminUserController)
+/*
 INSERT INTO permissions (service, resource, action, description) VALUES
     ('rf-auth-svc', 'AdminUserController', 'getAllUsers', 'Получение списка всех пользователей'),
     ('rf-auth-svc', 'AdminUserController', 'getUserById', 'Получение пользователя по ID'),
@@ -74,8 +86,9 @@ INSERT INTO permissions (service, resource, action, description) VALUES
     ('rf-auth-svc', 'AdminUserController', 'createRole',  'Создание новой роли'),
     ('rf-auth-svc', 'AdminUserController', 'deleteRole',  'Удаление роли')
 ON CONFLICT ON CONSTRAINT uq_permissions_service_resource_action DO NOTHING;
-
+*/
 -- Права для управления OAuth2 клиентами (ClientRegistrationController)
+/*
 INSERT INTO permissions (service, resource, action, description) VALUES
     ('rf-auth-svc', 'ClientRegistrationController', 'registerClient', 'Регистрация OAuth2 клиента'),
     ('rf-auth-svc', 'ClientRegistrationController', 'getClients',     'Получение списка клиентов'),
@@ -83,8 +96,9 @@ INSERT INTO permissions (service, resource, action, description) VALUES
     ('rf-auth-svc', 'ClientRegistrationController', 'updateClient',   'Редактирование клиента'),
     ('rf-auth-svc', 'ClientRegistrationController', 'deleteClient',   'Удаление клиента')
 ON CONFLICT ON CONSTRAINT uq_permissions_service_resource_action DO NOTHING;
-
+*/
 -- Права для управления правами (PermissionController — будет создан)
+/*
 INSERT INTO permissions (service, resource, action, description) VALUES
     ('rf-auth-svc', 'PermissionController', 'getAllPermissions',      'Получение списка всех прав'),
     ('rf-auth-svc', 'PermissionController', 'getPermissionsByService','Получение прав по сервису'),
@@ -95,10 +109,11 @@ INSERT INTO permissions (service, resource, action, description) VALUES
     ('rf-auth-svc', 'PermissionController', 'revokePermission',       'Снятие права с роли'),
     ('rf-auth-svc', 'PermissionController', 'getPermissionsByRoles',  'Загрузка прав для кэша (для микросервисов)')
 ON CONFLICT ON CONSTRAINT uq_permissions_service_resource_action DO NOTHING;
-
+*/
 -- ============================================================
 -- Назначаем роли ADMIN все права rf-auth-svc
 -- ============================================================
+/*
 INSERT INTO role_permissions (role_id, permission_id, granted_by)
 SELECT
     r.id,
@@ -109,3 +124,4 @@ FROM roles r
 WHERE r.name = 'ADMIN'
   AND p.service = 'rf-auth-svc'
 ON CONFLICT (role_id, permission_id) DO NOTHING;
+*/

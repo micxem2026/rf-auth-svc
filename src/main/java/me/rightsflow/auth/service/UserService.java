@@ -37,9 +37,9 @@ public class UserService {
     private static final Set<String> PROTECTED_USERNAMES = Set.of("admin");
 
     /**
-     * Системные роли — нельзя удалять и изменять ни ADMIN, ни PERMISSION_MANAGER.
+     * Системные роли — нельзя удалять и изменять.
      */
-    private static final Set<String> SYSTEM_ROLES = Set.of("ADMIN", "PERMISSION_MANAGER");
+    private static final Set<String> SYSTEM_ROLES = Set.of("ADMIN", "SERVICE", "PERMISSION_MANAGER");
 
     // ================================================================
     // Users

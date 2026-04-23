@@ -3,9 +3,7 @@ package me.rightsflow.auth.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import me.rightsflow.auth.dto.PermissionDto;
-import me.rightsflow.auth.dto.PermissionsByRolesResponse;
-import me.rightsflow.auth.dto.RolePermissionDto;
+import me.rightsflow.auth.dto.*;
 import me.rightsflow.auth.service.PermissionService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -128,6 +126,29 @@ public class PermissionController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
+    }
+
+    // Добавить в класс PermissionController:
+
+    /**
+     * Batch upsert прав от микросервисов при старте.
+     *
+     * <p>Доступен любому аутентифицированному клиенту с системным токеном
+     * (client_credentials). Не требует роли ADMIN — точно так же, как
+     * {@code GET /api/permissions/by-roles}.</p>
+     *
+     * <p>Операция идемпотентна: повторный деплой не создаёт дублей.</p>
+     */
+    @PostMapping("/register-batch")
+    public ResponseEntity<PermissionRegistrationResponse> registerBatch(
+            @Valid @RequestBody PermissionRegistrationRequest request) {
+
+        log.info("Received batch permission registration request from service '{}', " +
+                        "permissions count: {}",
+                request.getService(), request.getPermissions().size());
+
+        PermissionRegistrationResponse response = permissionService.upsertPermissions(request);
+        return ResponseEntity.ok(response);
     }
 
     // ================================================================

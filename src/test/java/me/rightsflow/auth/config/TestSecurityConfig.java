@@ -44,9 +44,9 @@ public class TestSecurityConfig {
                         ).permitAll()
 
                         // Кэш прав — любой аутентифицированный
-                        .requestMatchers("/api/permissions/by-roles")
-                        .authenticated()
-
+                        .requestMatchers("/api/permissions/by-roles").authenticated()
+                        // Авторегистрация прав — любой аутентифицированный
+                        .requestMatchers("/api/permissions/register-batch").authenticated()
                         // Управление правами — ADMIN или PERMISSION_MANAGER
                         .requestMatchers("/api/permissions/**").access(
                                 new WebExpressionAuthorizationManager(
