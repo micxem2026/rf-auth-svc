@@ -88,6 +88,11 @@ spec:
                 secretKeyRef:
                   name: rf-auth-secret
                   key: postgres-password
+            - name: RF_KAFKA_BROKERS
+              valueFrom:
+                configMapKeyRef:
+                  name: kafka-props
+                  key: brokers
             - name: RF_OTLP_ENDPOINT
               valueFrom:
                 configMapKeyRef:
