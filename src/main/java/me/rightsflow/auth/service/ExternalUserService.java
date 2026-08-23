@@ -43,15 +43,32 @@ public class ExternalUserService {
      * включая SERVICE, admin_client назначать может.
      */
     private static final Set<String> PROTECTED_ROLES_FOR_ADMIN_CLIENT =
-            Set.of("ADMIN", "PERMISSION_MANAGER", "ADMIN_CLIENT");
+            Set.of("ADMIN", "PERMISSION_MANAGER", "ADMIN_CLIENT", "SERVICE");
 
     @Transactional
-    public ClientRegistrationResponse createServiceUser(ExternalCreateServiceUserRequest request,
-                                                        Authentication authentication) {
+    public ExternalServiceUserResponse createServiceUser(ExternalCreateServiceUserRequest request,
+                                                         Authentication authentication) {
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new IllegalArgumentException("Username already exists: " + request.getUsername());
         }
-        return clientRegistrationService.registerServiceClient(request, authentication);
+
+        // Резолвим и валидируем роли ДО создания клиента — чтобы не создавать
+        // "хвост" из клиента/пользователя при недопустимой роли.
+        Set<RoleEntity> roles = resolveRoles(request.getRoles());
+        validateRolesAssignable(roles, authentication);
+
+        ClientRegistrationResponse clientResponse = clientRegistrationService.registerServiceClient(request, authentication);
+
+        UserEntity user = userRepository.findByUsername(request.getUsername())
+                .orElseThrow(() -> new IllegalStateException(
+                        "Service user was not created for username: " + request.getUsername()));
+        user.getRoles().addAll(roles);
+        UserEntity saved = userRepository.save(user);
+
+        log.info("External API: service user '{}' created by '{}' with roles {}",
+                saved.getUsername(), authentication.getName(), request.getRoles());
+
+        return toServiceUserResponse(saved, clientResponse);
     }
 
     @Transactional
@@ -82,6 +99,11 @@ public class ExternalUserService {
         UserEntity user = getOwnedUser(id, authentication);
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
+
+        if ("SERVICE".equals(user.getUserType())) {
+            clientRegistrationService.rotateServiceClientSecret(user.getUsername(), request.getNewPassword());
+        }
+
         log.info("External API: password changed for '{}' by '{}'", user.getUsername(), authentication.getName());
     }
 
@@ -119,6 +141,15 @@ public class ExternalUserService {
                 ? userRepository.findAll(Sort.by(Sort.Direction.ASC, "username"))
                 : userRepository.findAllByCreatedByOrderByUsername(authentication.getName());
         return users.stream().map(this::toDto).collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<RoleDto> getAssignableRoles(Authentication authentication) {
+        boolean admin = isAdmin(authentication);
+        return roleRepository.findAll(Sort.by(Sort.Direction.ASC, "name")).stream()
+                .filter(role -> admin || !PROTECTED_ROLES_FOR_ADMIN_CLIENT.contains(role.getName()))
+                .map(this::toRoleDto)
+                .collect(Collectors.toList());
     }
 
     // ---------------------------------------------------------------
@@ -177,6 +208,35 @@ public class ExternalUserService {
         dto.setCreatedBy(user.getCreatedBy());
         dto.setCreatedAt(user.getCreatedAt());
         dto.setRoles(user.getRoles().stream().map(RoleEntity::getName).collect(Collectors.toSet()));
+        return dto;
+    }
+
+    private ExternalServiceUserResponse toServiceUserResponse(UserEntity user, ClientRegistrationResponse clientResponse) {
+        ExternalServiceUserResponse dto = new ExternalServiceUserResponse();
+        dto.setId(user.getId());
+        dto.setClientId(clientResponse.getClientId());
+        dto.setClientSecret(clientResponse.getClientSecret());
+        dto.setUsername(user.getUsername());
+        dto.setDisplayName(user.getDisplayName());
+        dto.setEmail(user.getEmail());
+        dto.setEnabled(user.getEnabled());
+        dto.setAccountNonExpired(user.getAccountNonExpired());
+        dto.setAccountNonLocked(user.getAccountNonLocked());
+        dto.setExpirationDate(user.getExpirationDate());
+        dto.setLastLogon(user.getLastLogon());
+        dto.setUserType(user.getUserType());
+        dto.setCreatedBy(user.getCreatedBy());
+        dto.setCreatedAt(user.getCreatedAt());
+        dto.setRoles(user.getRoles().stream().map(RoleEntity::getName).collect(Collectors.toSet()));
+        return dto;
+    }
+
+    private RoleDto toRoleDto(RoleEntity role) {
+        RoleDto dto = new RoleDto();
+        dto.setId(role.getId());
+        dto.setName(role.getName());
+        dto.setDescription(role.getDescription());
+        dto.setCreatedBy(role.getCreatedBy());
         return dto;
     }
 }

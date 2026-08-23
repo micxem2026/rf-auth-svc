@@ -1,6 +1,8 @@
 ### Переменные окружения `(значение по умолчанию)`
 
 * **RF_AUTH_SVC_HOSTNAME** `(localhost)` - *имя хоста сервиса авторизации*
+* **RF_AUTH_SVC_HOSTNAME_EXTERNAL** `(localhost)` - *наружное имя хоста сервиса*
+* **RF_AUTH_SVC_PROTOCOL_EXTERNAL** `(http)` - *наружный протокол хоста сервиса*
 * **RF_EUREKA_SERVICE_URL** `(http://localhost:8761/eureka/)` - *адрес сервиса Eureka*
 * **RF_CONFIG_SERVICE_URL** `(http://localhost:8888)` - *адрес сервиса конфигурации*
 * **RF_PG_USERS_DB_SVC** `(postgresql.micxem)` - *имя сервиса базы данных*

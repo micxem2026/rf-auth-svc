@@ -1,5 +1,6 @@
 package me.rightsflow.auth.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
 import lombok.RequiredArgsConstructor;
@@ -42,8 +43,10 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.security.web.access.expression.WebExpressionAuthorizationManager;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -57,6 +60,7 @@ public class AuthorizationServerConfig {
     @Value("${server.port:9000}")
     private Integer issuerPort;
 
+    private final ObjectMapper objectMapper;
     private final JwkService jwkService;
     private final RfAuthUserDetailsService userDetailsService;
     private final JpaRegisteredClientRepository jpaRegisteredClientRepository;
@@ -212,9 +216,10 @@ public class AuthorizationServerConfig {
                         .defaultAccessDeniedHandlerFor(
                                 (request, response, accessDeniedException) -> {
                                     response.setStatus(HttpStatus.FORBIDDEN.value());
+                                    response.setCharacterEncoding(StandardCharsets.UTF_8.name());
                                     response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                                    response.getWriter().write(
-                                            "{\"error\":\"" + accessDeniedException.getMessage() + "\"}");
+                                    objectMapper.writeValue(response.getWriter(),
+                                            Map.of("error", accessDeniedException.getMessage()));
                                 },
                                 PathPatternRequestMatcher.withDefaults().matcher("/api/**")
                         )
@@ -227,6 +232,7 @@ public class AuthorizationServerConfig {
                         .defaultAuthenticationEntryPointFor(
                                 (request, response, authException) -> {
                                     response.setStatus(HttpStatus.UNAUTHORIZED.value());
+                                    response.setCharacterEncoding(StandardCharsets.UTF_8.name());
                                     response.setContentType(MediaType.APPLICATION_JSON_VALUE);
                                     response.getWriter().write("{\"error\":\"Authentication required.\"}");
                                 },

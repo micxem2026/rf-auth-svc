@@ -1,5 +1,8 @@
 package me.rightsflow.auth.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -7,12 +10,14 @@ import me.rightsflow.auth.dto.*;
 import me.rightsflow.auth.service.ExternalUserService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Внешнее API для admin_client (user_type='USER', роль ADMIN_CLIENT).
@@ -24,18 +29,43 @@ import java.util.Map;
 @RequestMapping("/api/auth/v1/users")
 @RequiredArgsConstructor
 @Slf4j
-@PreAuthorize("hasRole('ADMIN') or hasRole('ADMIN_CLIENT')")
+@Tag(name = "Пользователи", description = "Получение и управление пользователями")
 public class ExternalUserController {
 
     private final ExternalUserService externalUserService;
 
+    /** Роли, которым разрешён вызов методов внешнего API. */
+    private static final Set<String> ALLOWED_ROLES = Set.of("ROLE_ADMIN", "ROLE_ADMIN_CLIENT");
+
+    private void checkAccess(Authentication authentication) {
+        boolean allowed = authentication.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(ALLOWED_ROLES::contains);
+        if (!allowed) {
+            throw new AccessDeniedException(
+                    "Доступ запрещён: требуется роль ADMIN или ADMIN_CLIENT.");
+        }
+    }
+
+    @GetMapping("/available-roles")
+    @Operation(summary = "Получение списка доступных ролей")
+    public ResponseEntity<List<RoleDto>> getAvailableRoles(Authentication authentication) {
+        checkAccess(authentication);
+        return ResponseEntity.ok(externalUserService.getAssignableRoles(authentication));
+    }
+
     @GetMapping
+    @Operation(summary = "Получение списка доступных пользователей")
     public ResponseEntity<List<ExternalUserDto>> getUsers(Authentication authentication) {
+        checkAccess(authentication);
         return ResponseEntity.ok(externalUserService.getUsers(authentication));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<?> getUser(@PathVariable Integer id, Authentication authentication) {
+    @Operation(summary = "Получение пользователя по заданному ID")
+    public ResponseEntity<?> getUser(@Parameter(description = "ID пользователя")
+                                     @PathVariable Integer id, Authentication authentication) {
+        checkAccess(authentication);
         try {
             return ResponseEntity.ok(externalUserService.getUser(id, authentication));
         } catch (IllegalArgumentException e) {
@@ -44,10 +74,12 @@ public class ExternalUserController {
     }
 
     @PostMapping
+    @Operation(summary = "Создание нового пользователя")
     public ResponseEntity<?> createServiceUser(@Valid @RequestBody ExternalCreateServiceUserRequest request,
                                                Authentication authentication) {
+        checkAccess(authentication);
         try {
-            ClientRegistrationResponse created = externalUserService.createServiceUser(request, authentication);
+            ExternalServiceUserResponse created = externalUserService.createServiceUser(request, authentication);
             return new ResponseEntity<>(created, HttpStatus.CREATED);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -55,9 +87,12 @@ public class ExternalUserController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<?> updateUser(@PathVariable Integer id,
+    @Operation(summary = "Изменение пользователя")
+    public ResponseEntity<?> updateUser(@Parameter(description = "ID пользователя")
+                                        @PathVariable Integer id,
                                         @Valid @RequestBody ExternalUpdateUserRequest request,
                                         Authentication authentication) {
+        checkAccess(authentication);
         try {
             return ResponseEntity.ok(externalUserService.updateUser(id, request, authentication));
         } catch (IllegalArgumentException e) {
@@ -66,7 +101,10 @@ public class ExternalUserController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteUser(@PathVariable Integer id, Authentication authentication) {
+    @Operation(summary = "Удаление пользователя")
+    public ResponseEntity<?> deleteUser(@Parameter(description = "ID пользователя")
+                                        @PathVariable Integer id, Authentication authentication) {
+        checkAccess(authentication);
         try {
             externalUserService.deleteUser(id, authentication);
             return ResponseEntity.noContent().build();
@@ -76,9 +114,12 @@ public class ExternalUserController {
     }
 
     @PutMapping("/{id}/password")
-    public ResponseEntity<?> changePassword(@PathVariable Integer id,
+    @Operation(summary = "Изменение пароля пользователя")
+    public ResponseEntity<?> changePassword(@Parameter(description = "ID пользователя")
+                                            @PathVariable Integer id,
                                             @Valid @RequestBody ExternalChangePasswordRequest request,
                                             Authentication authentication) {
+        checkAccess(authentication);
         try {
             externalUserService.changePassword(id, request, authentication);
             return ResponseEntity.noContent().build();
@@ -88,9 +129,12 @@ public class ExternalUserController {
     }
 
     @PostMapping("/{id}/roles")
-    public ResponseEntity<?> assignRoles(@PathVariable Integer id,
+    @Operation(summary = "Назначение ролей пользователю")
+    public ResponseEntity<?> assignRoles(@Parameter(description = "ID пользователя")
+                                         @PathVariable Integer id,
                                          @Valid @RequestBody ExternalRoleNamesRequest request,
                                          Authentication authentication) {
+        checkAccess(authentication);
         try {
             return ResponseEntity.ok(externalUserService.assignRoles(id, request, authentication));
         } catch (IllegalArgumentException e) {
@@ -99,9 +143,12 @@ public class ExternalUserController {
     }
 
     @PostMapping("/{id}/roles/revoke")
-    public ResponseEntity<?> revokeRoles(@PathVariable Integer id,
+    @Operation(summary = "Снятие ролей с пользователя")
+    public ResponseEntity<?> revokeRoles(@Parameter(description = "ID пользователя")
+                                         @PathVariable Integer id,
                                          @Valid @RequestBody ExternalRoleNamesRequest request,
                                          Authentication authentication) {
+        checkAccess(authentication);
         try {
             return ResponseEntity.ok(externalUserService.revokeRoles(id, request, authentication));
         } catch (IllegalArgumentException e) {

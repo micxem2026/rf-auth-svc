@@ -25,7 +25,7 @@ async function exchangeCodeForTokens() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
-                'Authorization': 'Basic ' + btoa(clientId + ':' + clientSecret)
+                'Authorization': buildBasicAuthHeader(clientId, clientSecret)
             },
             body: bodyParams
         });
@@ -76,7 +76,7 @@ async function testClientCredentialsFlow() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
-                'Authorization': 'Basic ' + btoa(clientId + ':' + clientSecret)
+                'Authorization': buildBasicAuthHeader(clientId, clientSecret)
             },
             body: bodyParams
         });
@@ -622,6 +622,23 @@ function copyCCResponse() {
 
 function clearCCResponse() {
     clearElementContentUniversal('ccResponse');
+}
+
+/**
+ * Кодирует строку по правилам RFC 6749 Appendix B (application/x-www-form-urlencoded)
+ * перед тем, как поместить её в Basic Auth заголовок для /oauth2/token.
+ * Сервер (ClientSecretBasicAuthenticationConverter) декодирует client_id/client_secret
+ * из заголовка через URLDecoder — значит, кодировать их нужно симметрично.
+ */
+function formUrlEncodeForBasicAuth(value) {
+    return encodeURIComponent(value)
+        .replace(/%20/g, '+')                                   // пробел -> '+'
+        .replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+}
+
+function buildBasicAuthHeader(clientId, clientSecret) {
+    const encoded = formUrlEncodeForBasicAuth(clientId) + ':' + formUrlEncodeForBasicAuth(clientSecret);
+    return 'Basic ' + btoa(encoded);
 }
 
 

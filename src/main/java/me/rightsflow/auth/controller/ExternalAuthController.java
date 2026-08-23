@@ -1,5 +1,7 @@
 package me.rightsflow.auth.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -26,16 +28,18 @@ import java.util.Map;
 @RequestMapping("/api/auth/v1")
 @RequiredArgsConstructor
 @Slf4j
+@Tag(name = "Аутентификация", description = "Аутентификация внешних пользователей")
 public class ExternalAuthController {
 
     private final ExternalAuthService externalAuthService;
     private final WebAuthenticationDetailsSource detailsSource = new WebAuthenticationDetailsSource();
 
     /**
-     * Логин внешнего клиента (пользователь user_type='USER' с ролью ADMIN_CLIENT/ADMIN).
+     * Логин внешнего клиента.
      * Возвращает JWT, который принимается всеми ресурс-серверами платформы
      * (тот же механизм проверки, что и у обычных OAuth2-токенов).
      */
+    @Operation(summary = "Получение токена для заданного пользователя")
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {
         try {

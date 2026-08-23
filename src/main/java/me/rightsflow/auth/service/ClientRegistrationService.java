@@ -89,8 +89,9 @@ public class ClientRegistrationService {
      * Регистрация SERVICE-клиента через внешнее API (admin_client).
      * В отличие от {@link #registerClient}, не требует роли ADMIN, но
      * принудительно ограничивает возможности: только client_credentials
-     * (без authorization_code/redirect URIs — admin_client не должен заводить
-     * интерактивные клиенты), запрет scope 'admin'.
+     * (без authorization_code/redirect URIs), scope всегда фиксирован — "manager".
+     * Фактические права пользователя определяются ролями,
+     * назначаемыми в {@link ExternalUserService#createServiceUser}.
      */
     @Transactional
     public ClientRegistrationResponse registerServiceClient(ExternalCreateServiceUserRequest request,
@@ -99,13 +100,11 @@ public class ClientRegistrationService {
             throw new IllegalArgumentException("Client ID already exists: " + request.getUsername());
         }
 
-        Set<String> safeScopes = validateExternalApiScopes(request.getScopes());
-
         ClientRegistrationRequest clientRequest = new ClientRegistrationRequest();
         clientRequest.setClientId(request.getUsername());
         clientRequest.setClientName(request.getDisplayName());
         clientRequest.setGrantTypes(Set.of("client_credentials"));
-        clientRequest.setScopes(safeScopes);
+        clientRequest.setScopes(Set.of("manager"));
         clientRequest.setRequireAuthorizationConsent(false);
         clientRequest.setRequireProofKey(false);
         clientRequest.setReuseRefreshTokens(false);
@@ -113,20 +112,6 @@ public class ClientRegistrationService {
 
         validateGrantTypes(clientRequest.getGrantTypes());
         return doRegisterClient(clientRequest, authentication.getName());
-    }
-
-    private Set<String> validateExternalApiScopes(Set<String> requestedScopes) {
-        Set<String> invalid = requestedScopes.stream()
-                .filter(s -> !ALL_AVAILABLE_SCOPES.contains(s))
-                .collect(Collectors.toSet());
-        if (!invalid.isEmpty()) {
-            throw new IllegalArgumentException("Invalid scopes: " + String.join(", ", invalid));
-        }
-        if (requestedScopes.contains("admin")) {
-            throw new IllegalArgumentException(
-                    "Scope 'admin' недоступен для назначения через внешний API. Обратитесь к пользователю с ролью ADMIN.");
-        }
-        return requestedScopes;
     }
 
     /**
@@ -587,6 +572,30 @@ public class ClientRegistrationService {
         clientRepository.save(entity);
         log.info("Client '{}' protectedClient set to {} by {}",
                 clientId, value, authentication.getName());
+    }
+
+    /**
+     * Обновляет client_secret парного OAuth2-клиента при смене пароля SERVICE-пользователя.
+     * Вызывается из {@link ExternalUserService#changePassword} в той же транзакции.
+     * Для protected-клиентов (системных) ротация запрещена — как и остальные
+     * модифицирующие операции над ними (см. {@link #validateClientAccess}).
+     */
+    @Transactional
+    public void rotateServiceClientSecret(String clientId, String newPlainSecret) {
+        OAuth2RegisteredClientEntity entity = clientRepository.findByClientId(clientId).orElse(null);
+        if (entity == null) {
+            // ЕСЛИ данные рассинхронизировались из-за ручных операций в БД — не блокируем смену пароля,
+            // но явно логируем аномалию.
+            log.warn("No paired OAuth2 client found for username '{}' while rotating secret — skipping.", clientId);
+            return;
+        }
+        if (Boolean.TRUE.equals(entity.getProtectedClient())) {
+            throw new IllegalArgumentException("Cannot rotate secret of protected client '" + clientId + "'.");
+        }
+
+        entity.setClientSecret(passwordEncoder.encode(newPlainSecret));
+        clientRepository.save(entity);
+        log.info("Rotated client_secret for service client '{}'", clientId);
     }
 
 }

@@ -6,7 +6,6 @@ import me.rightsflow.auth.dto.LoginRequest;
 import me.rightsflow.auth.dto.LoginResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.authentication.event.AuthenticationFailureBadCredentialsEvent;
@@ -23,7 +22,6 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -38,9 +36,12 @@ public class ExternalAuthService {
     @Value("${rightsflow.oauth.token.external-login-ttl-seconds:1800}")
     private long loginTtlSeconds;
 
-    /** Роли, которым разрешён вход через внешний API. */
-    private static final Set<String> ALLOWED_LOGIN_ROLES = Set.of("ROLE_ADMIN", "ROLE_ADMIN_CLIENT");
-
+    /**
+     * Логин через внешний API. Доступен ЛЮБОМУ зарегистрированному
+     * пользователю (USER или SERVICE) независимо от роли — единственное
+     * условие — валидные учётные данные и активный (enabled/non-locked/
+     * non-expired) аккаунт.
+     */
     public LoginResponse login(LoginRequest request, WebAuthenticationDetails details) {
         UsernamePasswordAuthenticationToken authRequest =
                 new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword());
@@ -58,20 +59,9 @@ public class ExternalAuthService {
         RfAuthUserDetailsService.RfAuthUserPrincipal principal =
                 (RfAuthUserDetailsService.RfAuthUserPrincipal) authentication.getPrincipal();
 
-        if (!"USER".equals(principal.getUserType())) {
-            throw new AccessDeniedException(
-                    "Вход через внешний API доступен только пользователям с user_type='USER'.");
-        }
-
         List<String> roles = authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .toList();
-
-        boolean allowed = roles.stream().anyMatch(ALLOWED_LOGIN_ROLES::contains);
-        if (!allowed) {
-            throw new AccessDeniedException(
-                    "Пользователю не назначена роль ADMIN_CLIENT (или ADMIN), доступ к внешнему API запрещён.");
-        }
 
         eventPublisher.publishEvent(new AuthenticationSuccessEvent(authentication));
 
@@ -92,7 +82,6 @@ public class ExternalAuthService {
                 .claim("token_use", "external_api_login")
                 .build();
 
-        // Ключи в JwkService — RSA (см. RSAKeyGenerator), поэтому RS256.
         JwsHeader header = JwsHeader.with(SignatureAlgorithm.RS256).build();
         Jwt jwt = externalApiJwtEncoder.encode(JwtEncoderParameters.from(header, claims));
 
@@ -104,7 +93,7 @@ public class ExternalAuthService {
         response.setDisplayName(principal.getDisplayName());
         response.setRoles(new HashSet<>(roles));
 
-        log.info("External API login succeeded: user='{}'", principal.getUsername());
+        log.info("External API login succeeded: user='{}', userType='{}'", principal.getUsername(), principal.getUserType());
         return response;
     }
 }

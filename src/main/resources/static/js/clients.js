@@ -144,7 +144,7 @@ async function testSelectedClient() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
-                'Authorization': 'Basic ' + btoa(clientId + ':' + clientSecret)
+                'Authorization': buildBasicAuthHeader(clientId, clientSecret)
             },
             body: bodyParams
         });
