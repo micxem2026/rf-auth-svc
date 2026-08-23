@@ -14,6 +14,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -34,6 +36,7 @@ import org.springframework.security.web.authentication.AuthenticationSuccessHand
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -139,7 +142,10 @@ public class AuthorizationServerConfig {
                         "/actuator/**",
                         "/api/**",
                         "/userinfo",
-                        "/admin/**")
+                        "/admin/**",
+                        "/v3/api-docs/**",
+                        "/swagger-ui/**",
+                        "/swagger-ui.html")
                 .oauth2ResourceServer(resourceServer -> resourceServer
                         .jwt(Customizer.withDefaults())
                 )
@@ -149,7 +155,16 @@ public class AuthorizationServerConfig {
                                 "/error",
                                 "/login",
                                 "/logout",
+                                "/v3/api-docs/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html",
                                 "/").permitAll()
+                        // Логин внешнего API — открыт всем (аутентификация внутри)
+                        .requestMatchers("/api/auth/v1/login").permitAll()
+                        // Внешнее API управления SERVICE-пользователями — ADMIN или ADMIN_CLIENT
+                        .requestMatchers("/api/auth/v1/users/**").access(
+                                new WebExpressionAuthorizationManager("hasRole('ADMIN') or hasRole('ADMIN_CLIENT')")
+                        )
                         // Эндпоинт загрузки кэша — доступен любому аутентифицированному клиенту
                         // (микросервисы используют client_credentials)
                         .requestMatchers("/api/permissions/by-roles",
@@ -194,16 +209,37 @@ public class AuthorizationServerConfig {
                         .permitAll()
                 )
                 .exceptionHandling(exceptions -> exceptions
-                         .accessDeniedHandler((request, response, accessDeniedException) -> {
-                             response.sendRedirect("/auth/error?type=access-denied");
-                         })
-                         .authenticationEntryPoint((request, response, authException) -> {
-                             response.sendRedirect("/auth/login");
-                         })
+                        .defaultAccessDeniedHandlerFor(
+                                (request, response, accessDeniedException) -> {
+                                    response.setStatus(HttpStatus.FORBIDDEN.value());
+                                    response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                                    response.getWriter().write(
+                                            "{\"error\":\"" + accessDeniedException.getMessage() + "\"}");
+                                },
+                                PathPatternRequestMatcher.withDefaults().matcher("/api/**")
+                        )
+                        .defaultAccessDeniedHandlerFor(
+                                (request, response, accessDeniedException) -> {
+                                    response.sendRedirect("/auth/error?type=access-denied");
+                                },
+                                PathPatternRequestMatcher.withDefaults().matcher("/**")
+                        )
+                        .defaultAuthenticationEntryPointFor(
+                                (request, response, authException) -> {
+                                    response.setStatus(HttpStatus.UNAUTHORIZED.value());
+                                    response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                                    response.getWriter().write("{\"error\":\"Authentication required.\"}");
+                                },
+                                PathPatternRequestMatcher.withDefaults().matcher("/api/**")
+                        )
+                        .defaultAuthenticationEntryPointFor(
+                                new LoginUrlAuthenticationEntryPoint("/login"),
+                                PathPatternRequestMatcher.withDefaults().matcher("/**")
+                        )
                 )
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-                        .ignoringRequestMatchers("/oauth2/**", "/connect/**", "/.well-known/**")
+                        .ignoringRequestMatchers("/oauth2/**", "/connect/**", "/.well-known/**", "/api/auth/v1/**")
                 )
                 //.csrf(AbstractHttpConfigurer::disable)
                 .userDetailsService(userDetailsService);

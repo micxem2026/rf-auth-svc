@@ -56,6 +56,9 @@ public class UserEntity {
     @Column(name = "user_type", nullable = false)
     private String userType;
 
+    @Column(name = "created_by", nullable = false, length = 50)
+    private String createdBy = "system";
+
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "user_roles",

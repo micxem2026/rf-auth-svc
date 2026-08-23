@@ -10,5 +10,5 @@
 * **RF_KAFKA_BROKERS** `(kafka.micxem:9092)` - *список брокеров Kafka*
 * **RF_OTLP_ENDPOINT** `(http://tempo.monitoring:4318/v1/traces)` - *адрес сервиса OpenTelemetry*
 * **RF_TRACE_ENABLED** `(false)` - *флаг включения трассировки*
-* 
+
 

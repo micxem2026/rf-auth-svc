@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -44,4 +45,13 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
      * @return true if the user exists, false otherwise.
      */
     boolean existsByEmail(String email);
+
+    /**
+     * Find all users created by a specific user, ordered by username.
+     *
+     * @param createdBy The username of the user who created the users.
+     * @return A list of all users created by the specified user.
+     */
+    List<UserEntity> findAllByCreatedByOrderByUsername(String createdBy);
+
 }

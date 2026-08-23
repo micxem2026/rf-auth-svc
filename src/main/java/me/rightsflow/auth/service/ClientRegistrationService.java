@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import me.rightsflow.auth.dto.ClientRegistrationRequest;
 import me.rightsflow.auth.dto.ClientRegistrationResponse;
+import me.rightsflow.auth.dto.ExternalCreateServiceUserRequest;
 import me.rightsflow.auth.entity.OAuth2RegisteredClientEntity;
 import me.rightsflow.auth.entity.UserEntity;
 import me.rightsflow.auth.repository.OAuth2RegisteredClientRepository;
@@ -74,6 +75,135 @@ public class ClientRegistrationService {
 
     @Transactional
     public ClientRegistrationResponse registerClient(ClientRegistrationRequest request, Authentication authentication) {
+        validateUserPermissions(authentication, request.getScopes()); // ADMIN-only, как раньше
+
+        if (registeredClientRepository.existsByClientId(request.getClientId())) {
+            throw new IllegalArgumentException("Client ID already exists: " + request.getClientId());
+        }
+        validateGrantTypes(request.getGrantTypes());
+
+        return doRegisterClient(request, authentication.getName());
+    }
+
+    /**
+     * Регистрация SERVICE-клиента через внешнее API (admin_client).
+     * В отличие от {@link #registerClient}, не требует роли ADMIN, но
+     * принудительно ограничивает возможности: только client_credentials
+     * (без authorization_code/redirect URIs — admin_client не должен заводить
+     * интерактивные клиенты), запрет scope 'admin'.
+     */
+    @Transactional
+    public ClientRegistrationResponse registerServiceClient(ExternalCreateServiceUserRequest request,
+                                                            Authentication authentication) {
+        if (registeredClientRepository.existsByClientId(request.getUsername())) {
+            throw new IllegalArgumentException("Client ID already exists: " + request.getUsername());
+        }
+
+        Set<String> safeScopes = validateExternalApiScopes(request.getScopes());
+
+        ClientRegistrationRequest clientRequest = new ClientRegistrationRequest();
+        clientRequest.setClientId(request.getUsername());
+        clientRequest.setClientName(request.getDisplayName());
+        clientRequest.setGrantTypes(Set.of("client_credentials"));
+        clientRequest.setScopes(safeScopes);
+        clientRequest.setRequireAuthorizationConsent(false);
+        clientRequest.setRequireProofKey(false);
+        clientRequest.setReuseRefreshTokens(false);
+        // redirectUris намеренно не задаём — не нужны для client_credentials
+
+        validateGrantTypes(clientRequest.getGrantTypes());
+        return doRegisterClient(clientRequest, authentication.getName());
+    }
+
+    private Set<String> validateExternalApiScopes(Set<String> requestedScopes) {
+        Set<String> invalid = requestedScopes.stream()
+                .filter(s -> !ALL_AVAILABLE_SCOPES.contains(s))
+                .collect(Collectors.toSet());
+        if (!invalid.isEmpty()) {
+            throw new IllegalArgumentException("Invalid scopes: " + String.join(", ", invalid));
+        }
+        if (requestedScopes.contains("admin")) {
+            throw new IllegalArgumentException(
+                    "Scope 'admin' недоступен для назначения через внешний API. Обратитесь к пользователю с ролью ADMIN.");
+        }
+        return requestedScopes;
+    }
+
+    /**
+     * Общая логика создания RegisteredClient + парного SERVICE-пользователя.
+     * Проверки прав/уникальности выполняются вызывающей стороной.
+     */
+    private ClientRegistrationResponse doRegisterClient(ClientRegistrationRequest request, String createdBy) {
+        String clientSecret = generateClientSecret();
+        String encodedClientSecret = passwordEncoder.encode(clientSecret);
+
+        Instant clientSecretExpiresAt = Optional.ofNullable(request.getClientSecretExpiresAt())
+                .map(d -> d.atZone(ZoneId.systemDefault()).toInstant()).orElse(null);
+
+        RegisteredClient.Builder clientBuilder = RegisteredClient.withId(UUID.randomUUID().toString())
+                .clientId(request.getClientId())
+                .clientSecret(encodedClientSecret)
+                .clientSecretExpiresAt(clientSecretExpiresAt)
+                .clientName(request.getClientName())
+                .clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
+                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC);
+
+        request.getGrantTypes().forEach(grantType ->
+                clientBuilder.authorizationGrantType(new AuthorizationGrantType(grantType)));
+        request.getScopes().forEach(clientBuilder::scope);
+
+        if (request.getGrantTypes().contains("authorization_code") && request.getRedirectUris() != null) {
+            request.getRedirectUris().forEach(clientBuilder::redirectUri);
+        }
+
+        ClientSettings clientSettings = ClientSettings.builder()
+                .requireAuthorizationConsent(request.getRequireAuthorizationConsent())
+                .requireProofKey(request.getRequireProofKey())
+                .build();
+        clientBuilder.clientSettings(clientSettings);
+
+        TokenSettings.Builder tokenSettingsBuilder = TokenSettings.builder()
+                .reuseRefreshTokens(request.getReuseRefreshTokens());
+
+        long tokenTtlSeconds = request.getAccessTokenTtlSeconds() != null ? request.getAccessTokenTtlSeconds() : defTokenTtl;
+        tokenTtlSeconds = Math.min(maxTokenTtl, tokenTtlSeconds);
+        tokenSettingsBuilder.accessTokenTimeToLive(Duration.ofSeconds(tokenTtlSeconds));
+
+        long refreshTokenTtlSeconds = request.getRefreshTokenTtlSeconds() != null
+                ? request.getRefreshTokenTtlSeconds() : Duration.ofDays(refreshTtlDays).toSeconds();
+        tokenSettingsBuilder.refreshTokenTimeToLive(Duration.ofSeconds(refreshTokenTtlSeconds));
+
+        clientBuilder.tokenSettings(tokenSettingsBuilder.build());
+        RegisteredClient registeredClient = clientBuilder.build();
+
+        OAuth2RegisteredClientEntity entity = toEntityWithCreator(registeredClient, createdBy);
+        clientRepository.save(entity);
+        log.info("Registered new client: {} by user: {}", request.getClientId(), createdBy);
+
+        makeServiceUser(request.getClientId(), request.getClientName(), clientSecret, createdBy);
+
+        return createResponse(registeredClient, clientSecret, createdBy);
+    }
+
+    /**
+     * Удаляет OAuth2-клиента и парного SERVICE-пользователя. Проверка владения
+     * уже выполнена вызывающей стороной (см. ExternalUserService.getOwnedUser)
+     */
+    @Transactional
+    public void deleteClientAndServiceUser(String clientId) {
+        clientRepository.findByClientId(clientId).ifPresent(entity -> {
+            if (Boolean.TRUE.equals(entity.getProtectedClient())) {
+                throw new IllegalArgumentException("Cannot delete protected client '" + clientId + "'.");
+            }
+            registeredClientRepository.deleteByClientId(clientId);
+            log.info("Deleted OAuth2 client '{}' (via external API)", clientId);
+        });
+        deleteByUsername(clientId);
+    }
+
+    @Transactional
+    @Deprecated
+    public ClientRegistrationResponse registerClientOld(ClientRegistrationRequest request, Authentication authentication) {
 
         // Проверяем права пользователя
         validateUserPermissions(authentication, request.getScopes());
@@ -146,7 +276,7 @@ public class ClientRegistrationService {
         log.info("Registered new client: {} by user: {}", request.getClientId(), authentication.getName());
 
         // Создаем пользователя
-        makeServiceUser(request.getClientId(), request.getClientName(), clientSecret);
+        makeServiceUser(request.getClientId(), request.getClientName(), clientSecret, authentication.getName());
 
         // Возвращаем ответ с незашифрованным client secret
         return createResponse(registeredClient, clientSecret, authentication.getName());
@@ -423,7 +553,7 @@ public class ClientRegistrationService {
         entity.setUpdatedAt(LocalDateTime.now());
     }
 
-    private void makeServiceUser(String clientId, String clientName, String clientSecret) {
+    private void makeServiceUser(String clientId, String clientName, String clientSecret, String createdBy) {
         UserEntity user = new UserEntity();
         user.setUsername(clientId);
         user.setDisplayName(clientName);
@@ -435,9 +565,10 @@ public class ClientRegistrationService {
         user.setExpirationDate(null);
         user.setLastLogon(null);
         user.setUserType("SERVICE");
+        user.setCreatedBy(createdBy);
         user.setCreatedAt(LocalDateTime.now());
         userRepository.save(user);
-        log.info("Created service user: {}", user.getUsername());
+        log.info("Created service user: {} (created_by={})", user.getUsername(), createdBy);
     }
 
     @Transactional
